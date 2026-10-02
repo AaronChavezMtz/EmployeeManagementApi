@@ -1,0 +1,32 @@
+# Entorno de desarrollo local: API + SQL Server en contenedores.
+# Uso: docker compose up --build
+version: "3.9"
+
+services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: employee-sqlserver
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "TuPassword123!"
+    ports:
+      - "1433:1433"
+    volumes:
+      - sqlserver-data:/var/opt/mssql
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: employee-api
+    depends_on:
+      - sqlserver
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      PORT: "8080"
+      ConnectionStrings__DefaultConnection: "Server=sqlserver,1433;Database=EmployeeManagementDb;User Id=sa;Password=TuPassword123!;TrustServerCertificate=True;"
+    ports:
+      - "8080:8080"
+
+volumes:
+  sqlserver-data:
