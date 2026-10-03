@@ -1,6 +1,7 @@
 using EmployeeManagementApi.Common;
 using EmployeeManagementApi.DTOs;
 using EmployeeManagementApi.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace EmployeeManagementApi.Controllers;
@@ -8,6 +9,7 @@ namespace EmployeeManagementApi.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Produces("application/json")]
+[Authorize]
 public class DepartmentsController : ControllerBase
 {
     private readonly IDepartmentService _service;
@@ -32,6 +34,7 @@ public class DepartmentsController : ControllerBase
 
     /// <summary>Crea un nuevo departamento.</summary>
     [HttpPost]
+    [Authorize(Roles = "Admin")]
     [ProducesResponseType(typeof(DepartmentDto), StatusCodes.Status201Created)]
     public async Task<ActionResult<DepartmentDto>> Create([FromBody] CreateDepartmentDto dto)
     {
@@ -41,12 +44,14 @@ public class DepartmentsController : ControllerBase
 
     /// <summary>Actualiza un departamento existente.</summary>
     [HttpPut("{id:int}")]
+    [Authorize(Roles = "Admin")]
     [ProducesResponseType(typeof(DepartmentDto), StatusCodes.Status200OK)]
     public async Task<ActionResult<DepartmentDto>> Update(int id, [FromBody] UpdateDepartmentDto dto)
         => Ok(await _service.UpdateAsync(id, dto));
 
     /// <summary>Elimina un departamento (solo si no tiene empleados asignados).</summary>
     [HttpDelete("{id:int}")]
+    [Authorize(Roles = "Admin")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status409Conflict)]
     public async Task<IActionResult> Delete(int id)

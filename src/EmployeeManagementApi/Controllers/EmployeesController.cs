@@ -1,6 +1,7 @@
 using EmployeeManagementApi.Common;
 using EmployeeManagementApi.DTOs;
 using EmployeeManagementApi.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace EmployeeManagementApi.Controllers;
@@ -8,6 +9,7 @@ namespace EmployeeManagementApi.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Produces("application/json")]
+[Authorize] // requiere JWT válido para cualquier endpoint de este controller
 public class EmployeesController : ControllerBase
 {
     private readonly IEmployeeService _service;
@@ -39,6 +41,7 @@ public class EmployeesController : ControllerBase
 
     /// <summary>Crea un nuevo empleado.</summary>
     [HttpPost]
+    [Authorize(Roles = "Admin")]
     [ProducesResponseType(typeof(EmployeeDto), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<EmployeeDto>> Create([FromBody] CreateEmployeeDto dto)
@@ -49,6 +52,7 @@ public class EmployeesController : ControllerBase
 
     /// <summary>Actualiza un empleado existente.</summary>
     [HttpPut("{id:int}")]
+    [Authorize(Roles = "Admin")]
     [ProducesResponseType(typeof(EmployeeDto), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
     public async Task<ActionResult<EmployeeDto>> Update(int id, [FromBody] UpdateEmployeeDto dto)
@@ -59,6 +63,7 @@ public class EmployeesController : ControllerBase
 
     /// <summary>Da de baja (soft delete) a un empleado.</summary>
     [HttpDelete("{id:int}")]
+    [Authorize(Roles = "Admin")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Delete(int id)

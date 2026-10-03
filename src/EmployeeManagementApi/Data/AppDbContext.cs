@@ -9,6 +9,7 @@ public class AppDbContext : DbContext
 
     public DbSet<Employee> Employees => Set<Employee>();
     public DbSet<Department> Departments => Set<Department>();
+    public DbSet<User> Users => Set<User>();
 
     // Entidad sin clave, mapeada a la vista vw_DepartmentSummary (ver Database/schema.sql).
     public DbSet<DepartmentSummaryView> DepartmentSummaries => Set<DepartmentSummaryView>();
@@ -39,6 +40,18 @@ public class AppDbContext : DbContext
                   .WithMany(d => d.Employees)
                   .HasForeignKey(e => e.DepartmentId)
                   .OnDelete(DeleteBehavior.Restrict); // no permite borrar un departamento con empleados
+        });
+
+        modelBuilder.Entity<User>(entity =>
+        {
+            entity.ToTable("Users");
+            entity.HasKey(u => u.Id);
+            entity.Property(u => u.Username).IsRequired().HasMaxLength(50);
+            entity.HasIndex(u => u.Username).IsUnique();
+            entity.Property(u => u.Email).IsRequired().HasMaxLength(150);
+            entity.HasIndex(u => u.Email).IsUnique();
+            entity.Property(u => u.PasswordHash).IsRequired();
+            entity.Property(u => u.Role).HasConversion<string>().HasMaxLength(20);
         });
 
         // Mapeo de la vista SQL (sin clave primaria, solo lectura).
