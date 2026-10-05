@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using EmployeeManagementApi.Common;
 using EmployeeManagementApi.Data;
 using EmployeeManagementApi.DTOs;
@@ -11,12 +12,20 @@ public class EmployeeService : IEmployeeService
 {
     private readonly AppDbContext _context;
     private readonly ILogger<EmployeeService> _logger;
+    private readonly IHttpContextAccessor _httpContextAccessor;
 
-    public EmployeeService(AppDbContext context, ILogger<EmployeeService> logger)
+    public EmployeeService(AppDbContext context, ILogger<EmployeeService> logger, IHttpContextAccessor httpContextAccessor)
     {
         _context = context;
         _logger = logger;
+        _httpContextAccessor = httpContextAccessor;
     }
+
+    private string CurrentUsername =>
+        _httpContextAccessor.HttpContext?.User?.FindFirstValue(ClaimTypes.NameIdentifier)
+        ?? _httpContextAccessor.HttpContext?.User?.Identity?.Name
+        ?? _httpContextAccessor.HttpContext?.User?.FindFirstValue("sub")
+        ?? "sistema";
 
     public async Task<PagedResultDto<EmployeeDto>> GetAllAsync(EmployeeQueryParameters q)
     {
@@ -114,7 +123,17 @@ public class EmployeeService : IEmployeeService
         _context.Employees.Add(employee);
         await _context.SaveChangesAsync();
 
-        _logger.LogInformation("Empleado creado: {Email} (Id {Id})", employee.Email, employee.Id);
+        _context.EmployeeHistories.Add(new EmployeeHistory
+        {
+            EmployeeId = employee.Id,
+            ChangeType = HistoryChangeType.Created,
+            NewValue = $"{employee.FirstName} {employee.LastName} contratado como {employee.Position}",
+            ChangedBy = CurrentUsername,
+            ChangedAtUtc = DateTime.UtcNow
+        });
+        await _context.SaveChangesAsync();
+
+        _logger.LogInformation("Empleado creado: {Email} (Id {Id}) por {User}", employee.Email, employee.Id, CurrentUsername);
 
         await _context.Entry(employee).Reference(e => e.Department).LoadAsync();
         return MapToDto(employee);
@@ -137,6 +156,40 @@ public class EmployeeService : IEmployeeService
         if (emailInUse)
             throw new BusinessRuleException($"Ya existe otro empleado registrado con el correo {dto.Email}");
 
+        var historyEntries = new List<EmployeeHistory>();
+        var now = DateTime.UtcNow;
+
+        if (employee.DepartmentId != dto.DepartmentId)
+        {
+            var oldDeptName = employee.Department?.Name ?? employee.DepartmentId.ToString();
+            var newDept = await _context.Departments.FindAsync(dto.DepartmentId);
+            historyEntries.Add(new EmployeeHistory
+            {
+                EmployeeId = id, ChangeType = HistoryChangeType.DepartmentChanged,
+                OldValue = oldDeptName, NewValue = newDept?.Name, ChangedBy = CurrentUsername, ChangedAtUtc = now
+            });
+        }
+
+        if (employee.Salary != dto.Salary)
+        {
+            historyEntries.Add(new EmployeeHistory
+            {
+                EmployeeId = id, ChangeType = HistoryChangeType.SalaryChanged,
+                OldValue = employee.Salary.ToString("F2"), NewValue = dto.Salary.ToString("F2"),
+                ChangedBy = CurrentUsername, ChangedAtUtc = now
+            });
+        }
+
+        if (employee.IsActive != dto.IsActive)
+        {
+            historyEntries.Add(new EmployeeHistory
+            {
+                EmployeeId = id,
+                ChangeType = dto.IsActive ? HistoryChangeType.Activated : HistoryChangeType.Deactivated,
+                ChangedBy = CurrentUsername, ChangedAtUtc = now
+            });
+        }
+
         employee.FirstName = dto.FirstName.Trim();
         employee.LastName = dto.LastName.Trim();
         employee.Email = dto.Email.Trim().ToLower();
@@ -146,7 +199,17 @@ public class EmployeeService : IEmployeeService
         employee.BirthDate = dto.BirthDate;
         employee.DepartmentId = dto.DepartmentId;
         employee.IsActive = dto.IsActive;
-        employee.UpdatedAt = DateTime.UtcNow;
+        employee.UpdatedAt = now;
+
+        if (historyEntries.Count == 0)
+        {
+            historyEntries.Add(new EmployeeHistory
+            {
+                EmployeeId = id, ChangeType = HistoryChangeType.Updated,
+                NewValue = "Datos generales actualizados", ChangedBy = CurrentUsername, ChangedAtUtc = now
+            });
+        }
+        _context.EmployeeHistories.AddRange(historyEntries);
 
         await _context.SaveChangesAsync();
 
@@ -165,9 +228,18 @@ public class EmployeeService : IEmployeeService
         // Baja lógica: conserva historial en lugar de borrar el registro físicamente.
         employee.IsActive = false;
         employee.UpdatedAt = DateTime.UtcNow;
+
+        _context.EmployeeHistories.Add(new EmployeeHistory
+        {
+            EmployeeId = id,
+            ChangeType = HistoryChangeType.Deactivated,
+            ChangedBy = CurrentUsername,
+            ChangedAtUtc = DateTime.UtcNow
+        });
+
         await _context.SaveChangesAsync();
 
-        _logger.LogInformation("Empleado dado de baja: Id {Id}", id);
+        _logger.LogInformation("Empleado dado de baja: Id {Id} por {User}", id, CurrentUsername);
     }
 
     public async Task<IEnumerable<EmployeeDto>> SearchWithStoredProcedureAsync(
@@ -185,6 +257,27 @@ public class EmployeeService : IEmployeeService
             .ToListAsync();
 
         return results.Select(MapToDto);
+    }
+
+    public async Task<IEnumerable<EmployeeHistoryDto>> GetHistoryAsync(int employeeId)
+    {
+        var exists = await _context.Employees.AnyAsync(e => e.Id == employeeId);
+        if (!exists)
+            throw new NotFoundException($"No se encontró el empleado con id {employeeId}");
+
+        return await _context.EmployeeHistories
+            .Where(h => h.EmployeeId == employeeId)
+            .OrderByDescending(h => h.ChangedAtUtc)
+            .Select(h => new EmployeeHistoryDto
+            {
+                Id = h.Id,
+                ChangeType = h.ChangeType,
+                OldValue = h.OldValue,
+                NewValue = h.NewValue,
+                ChangedBy = h.ChangedBy,
+                ChangedAtUtc = h.ChangedAtUtc
+            })
+            .ToListAsync();
     }
 
     private static EmployeeDto MapToDto(Employee e) => new()

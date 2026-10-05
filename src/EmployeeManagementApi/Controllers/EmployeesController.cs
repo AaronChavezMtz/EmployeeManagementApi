@@ -72,6 +72,16 @@ public class EmployeesController : ControllerBase
         return NoContent();
     }
 
+    /// <summary>Bitácora de cambios del empleado (altas, cambios de departamento, salario, estado).</summary>
+    [HttpGet("{id:int}/history")]
+    [ProducesResponseType(typeof(IEnumerable<EmployeeHistoryDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<IEnumerable<EmployeeHistoryDto>>> GetHistory(int id)
+    {
+        var history = await _service.GetHistoryAsync(id);
+        return Ok(history);
+    }
+
     /// <summary>Búsqueda avanzada usando el procedimiento almacenado sp_SearchEmployees.</summary>
     [HttpGet("search-sp")]
     [ProducesResponseType(typeof(IEnumerable<EmployeeDto>), StatusCodes.Status200OK)]

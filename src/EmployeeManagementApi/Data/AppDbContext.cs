@@ -10,6 +10,7 @@ public class AppDbContext : DbContext
     public DbSet<Employee> Employees => Set<Employee>();
     public DbSet<Department> Departments => Set<Department>();
     public DbSet<User> Users => Set<User>();
+    public DbSet<EmployeeHistory> EmployeeHistories => Set<EmployeeHistory>();
 
     // Entidad sin clave, mapeada a la vista vw_DepartmentSummary (ver Database/schema.sql).
     public DbSet<DepartmentSummaryView> DepartmentSummaries => Set<DepartmentSummaryView>();
@@ -52,6 +53,23 @@ public class AppDbContext : DbContext
             entity.HasIndex(u => u.Email).IsUnique();
             entity.Property(u => u.PasswordHash).IsRequired();
             entity.Property(u => u.Role).HasConversion<string>().HasMaxLength(20);
+        });
+
+        modelBuilder.Entity<EmployeeHistory>(entity =>
+        {
+            entity.ToTable("EmployeeHistories");
+            entity.HasKey(h => h.Id);
+            entity.Property(h => h.ChangeType).HasConversion<string>().HasMaxLength(30);
+            entity.Property(h => h.ChangedBy).IsRequired().HasMaxLength(50);
+            entity.Property(h => h.OldValue).HasMaxLength(500);
+            entity.Property(h => h.NewValue).HasMaxLength(500);
+
+            entity.HasOne(h => h.Employee)
+                  .WithMany()
+                  .HasForeignKey(h => h.EmployeeId)
+                  .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasIndex(h => h.EmployeeId);
         });
 
         // Mapeo de la vista SQL (sin clave primaria, solo lectura).

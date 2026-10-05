@@ -25,6 +25,13 @@ services:
       ASPNETCORE_ENVIRONMENT: Development
       PORT: "8080"
       ConnectionStrings__DefaultConnection: "Server=sqlserver,1433;Database=EmployeeManagementDb;User Id=sa;Password=TuPassword123!;TrustServerCertificate=True;"
+      Jwt__Issuer: "EmployeeManagementApi"
+      Jwt__Audience: "EmployeeManagementApiClients"
+      Jwt__SecretKey: "CAMBIA-ESTA-LLAVE-POR-UNA-PROPIA-DE-AL-MENOS-32-CARACTERES"
+      Jwt__ExpiryMinutes: "60"
+      InitialAdmin__Username: "admin"
+      InitialAdmin__Email: "admin@local.dev"
+      InitialAdmin__Password: "CambiaEstaClave123!"
     ports:
       - "8080:8080"
 

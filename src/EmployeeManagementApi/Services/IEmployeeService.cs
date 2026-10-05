@@ -13,4 +13,7 @@ public interface IEmployeeService
 
     // Búsqueda avanzada delegada al procedimiento almacenado sp_SearchEmployees
     Task<IEnumerable<EmployeeDto>> SearchWithStoredProcedureAsync(string? searchTerm, int? departmentId, bool? isActive);
+
+    // Bitácora de cambios de un empleado específico
+    Task<IEnumerable<EmployeeHistoryDto>> GetHistoryAsync(int employeeId);
 }
