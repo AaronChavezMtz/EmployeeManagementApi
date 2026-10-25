@@ -24,7 +24,7 @@ public class ReportService : IReportService
         // Reutiliza los mismos filtros que la pantalla de empleados, pero sin límite de página
         // (hasta un tope razonable) para que el reporte refleje lo que el usuario está viendo.
         query.PageNumber = 1;
-        query.PageSize = 5000;
+        query.SetPageSizeUnchecked(5000); // PageSize = 5000 se recortaría a 100
         var result = await _employeeService.GetAllAsync(query);
 
         using var workbook = new XLWorkbook();

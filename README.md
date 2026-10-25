@@ -16,31 +16,10 @@ API REST para la administración de empleados y departamentos de una empresa: al
 >
 > | Rol | Usuario | Contraseña | Permisos |
 > |---|---|---|---|
-> | Administrador | `admin` | `123_RHSystem` | Acceso completo: crear, editar y eliminar |
+> | Administrador | `adminprueba` | `123_Prueba` | Acceso completo: crear, editar y eliminar |
 > | Solo lectura | `usuariolector` | `lector_123` | Solo puede consultar información |
 >
-> *Nota: el servicio gratuito de Render puede tardar ~30-60 s en responder la primera vez (arranque en frío). Los datos de la demo son ficticios; no registres información real.*
-
----
-
-## Tabla de contenidos
-
-- [Descripción](#descripción)
-- [Arquitectura](#arquitectura)
-- [Funcionalidades](#funcionalidades)
-- [Decisiones técnicas](#decisiones-técnicas)
-- [Modelo de datos](#modelo-de-datos)
-- [Objetos SQL](#objetos-sql)
-- [Endpoints principales](#endpoints-principales)
-- [Seguridad](#seguridad)
-- [Stack](#stack)
-- [Estructura del proyecto](#estructura-del-proyecto)
-- [Cómo correrlo en local](#cómo-correrlo-en-local)
-- [Variables de entorno](#variables-de-entorno)
-- [Pruebas](#pruebas)
-- [Despliegue](#despliegue)
-- [Roadmap](#roadmap)
-- [Autor](#autor)
+> *Nota: el servicio gratuito de Render puede tardar ~30-60 s en responder la primera vez (arranque en frío). Los datos de la demo son ficticios; no registres información real. Las cuentas de demo están protegidas (no se pueden desactivar ni cambiar de rol) y el dueño de la demo la restaura periódicamente.*
 
 ---
 
@@ -200,23 +179,30 @@ La referencia completa e interactiva está en [Swagger](https://employeemanageme
 | `GET` | `/api/Reports/employees/excel` | Exporta empleados a Excel (acepta los mismos filtros de búsqueda) | Admin, Viewer |
 | `GET` | `/api/Reports/departments/excel` | Exporta el resumen por departamento a Excel | Admin, Viewer |
 | `GET` | `/api/Reports/departments/pdf` | Exporta el resumen por departamento a PDF | Admin, Viewer |
+| `GET` | `/api/Demo` | Indica si el usuario actual puede reiniciar la demo | Admin |
+| `POST` | `/api/Demo/reset` | Restaura los datos de la demo (solo con `Demo__Enabled=true`; 2 veces cada 5 min) | Admin inicial y superusuario |
 | `GET` | `/health` | Health check del servicio | Público |
 
 Ejemplo de búsqueda con filtros:
 
 ```
-GET /api/Employees?search=garcia&departmentId=3&isActive=true&minSalary=15000&sortBy=hireDate&page=1&pageSize=20
+GET /api/Employees?search=garcia&departmentId=3&isActive=true&minSalary=15000&sortBy=hireDate&pageNumber=1&pageSize=20
 ```
 
 ## Seguridad
 
-- Autenticación **JWT Bearer** con expiración configurable
+- Autenticación **JWT Bearer** con expiración configurable; en cada petición se comprueba que la cuenta siga activa y con el mismo rol (un token de una cuenta desactivada o borrada deja de servir al instante)
 - **Autorización por rol** aplicada en el servidor (el frontend solo oculta acciones; la API las bloquea)
-- Contraseñas hasheadas con **BCrypt**
-- **Rate limiting** reforzado en `/api/auth/login` contra fuerza bruta
-- **CORS** restringido a los dominios definidos en `AllowedOrigins`
+- Contraseñas hasheadas con **BCrypt**; el login tarda lo mismo exista o no el usuario (evita enumerar cuentas)
+- **Rate limiting** por IP real del cliente (lee `X-Forwarded-For` del proxy de Render): 100 peticiones/min en general y 5 intentos/min en `/api/auth/login`
+- **CORS** restringido a `AllowedOrigins`; en producción, si está vacío no se permite ningún origen (solo en Development se permite cualquiera). CORS solo limita a los navegadores: la API sigue siendo accesible desde cualquier cliente, por eso todo lo sensible exige JWT
+- **Cuentas protegidas**: el admin inicial, el superusuario y `Demo__ProtectedUsers` no se pueden modificar desde la API
+- Cabeceras `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy` y HSTS fuera de Development
+- El contenedor corre con un usuario sin privilegios (`USER $APP_UID`)
 - Secretos fuera del repositorio (variables de entorno / `appsettings.Development.json` ignorado por Git)
 - Errores controlados: el cliente nunca recibe *stack traces*
+
+**Riesgos aceptados de la demo:** Swagger está expuesto en producción y hay credenciales de admin públicas (mitigado con cuentas protegidas y el reinicio de la demo).
 
 ## Stack
 
@@ -237,8 +223,7 @@ src/EmployeeManagementApi/
 tests/EmployeeManagementApi.Tests/
 ├── Common/            MinimumAgeAttributeTests
 ├── Controllers/       EmployeesControllerTests
-├── Services/          AuthServiceTests, DepartmentServiceTests, EmployeeServiceTests
-├── FakeHttpContextAccessor.cs   Doble de prueba para simular el usuario autenticado
+├── Services/          Pruebas de servicios + FakeHttpContextAccessor (simula el usuario autenticado)
 └── TestDbContextFactory.cs      Crea un DbContext InMemory aislado por prueba
 ```
 
@@ -266,24 +251,24 @@ Configura `appsettings.Development.json` con tu cadena de conexión y un `Jwt:Se
 }
 ```
 
-Aplica las migraciones y corre la app:
+Corre la app:
 
 ```bash
-dotnet ef database update
 dotnet run
 ```
 
-La app aplica las migraciones pendientes automáticamente al arrancar y siembra un usuario `Admin` inicial (con los datos de `InitialAdmin`) si la tabla `Users` está vacía.
+La app aplica las migraciones pendientes automáticamente al arrancar y crea (o actualiza la contraseña de) el usuario `Admin` definido en `InitialAdmin`, y el de `SuperAdmin` si está configurado.
 
-Luego ejecuta `Database/schema.sql` una vez contra tu base para crear el procedimiento almacenado y la vista (EF Core no gestiona esos objetos).
+Luego ejecuta `Database/schema.sql` una vez, conectado a tu base, para crear el procedimiento almacenado y la vista (EF Core no gestiona esos objetos).
 
 Swagger queda disponible en la raíz: `http://localhost:8080`
 
-### SQL Server rápido con Docker
+### Todo con Docker
+
+`docker-compose.yml` levanta la API y SQL Server ya configurados (credenciales solo para uso local):
 
 ```bash
-docker run -e "ACCEPT_EULA=Y" -e "MSSQL_SA_PASSWORD=TuPassword_Segura123" \
-  -p 1433:1433 --name sqlserver -d mcr.microsoft.com/mssql/server:2022-latest
+docker compose up --build
 ```
 
 ## Variables de entorno
@@ -294,8 +279,11 @@ docker run -e "ACCEPT_EULA=Y" -e "MSSQL_SA_PASSWORD=TuPassword_Segura123" \
 | `Jwt__SecretKey` | Clave de firma del token (32+ caracteres) |
 | `Jwt__Issuer` / `Jwt__Audience` | Emisor y audiencia del token |
 | `Jwt__ExpiryMinutes` | Vigencia del token en minutos |
-| `InitialAdmin__Username` / `__Email` / `__Password` | Datos del administrador sembrado en el primer arranque |
-| `AllowedOrigins` | Dominios del frontend permitidos por CORS |
+| `InitialAdmin__Username` / `__Email` / `__Password` | Admin privado y protegido; se crea al arrancar y su contraseña se sincroniza con la variable en cada arranque. Junto con el superusuario, es el único que puede reiniciar la demo |
+| `AllowedOrigins` | Dominios del frontend permitidos por CORS, separados por coma (por defecto, el frontend de la demo) |
+| `SuperAdmin__Username` / `__Email` / `__Password` | Segundo admin privado y protegido, opcional |
+| `Demo__Enabled` | `true` habilita `POST /api/Demo/reset` |
+| `Demo__ProtectedUsers` | Cuentas que no se pueden modificar y que el reinicio no borra, separadas por coma |
 
 ## Pruebas
 
@@ -312,16 +300,14 @@ Las pruebas usan EF Core InMemory (una base nueva por prueba, vía `TestDbContex
 | Servicios | `EmployeeServiceTests` | Lógica de negocio de empleados |
 | Servicios | `DepartmentServiceTests` | Lógica de negocio de departamentos |
 | Servicios | `AuthServiceTests` | Autenticación y emisión de tokens |
+| Servicios | `UserServiceTests` | Las cuentas protegidas no se pueden modificar |
+| Servicios | `DemoServiceTests` | El reinicio conserva las cuentas protegidas y vuelve a sembrar los datos |
 
 `FakeHttpContextAccessor` simula el usuario autenticado para probar el registro de quién realiza cada cambio.
 
 ## Despliegue
 
 Pensado para correr como contenedor Docker (`Dockerfile` incluido) en Render, con la base de datos en Azure SQL Database. Define las variables de la sección anterior en el panel del servicio.
-
-```
-Cliente (Render Static) ──► API (Render, Docker) ──► Azure SQL Database
-```
 
 ## Roadmap
 

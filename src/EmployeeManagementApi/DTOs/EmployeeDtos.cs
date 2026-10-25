@@ -109,11 +109,20 @@ public class EmployeeQueryParameters
     public bool Descending { get; set; } = false;
 
     private const int MaxPageSize = 100;
+    private const int MaxPageNumber = 10_000; // evita desbordar (PageNumber - 1) * PageSize
     private int _pageSize = 10;
-    public int PageNumber { get; set; } = 1;
+    private int _pageNumber = 1;
+    public int PageNumber
+    {
+        get => _pageNumber;
+        set => _pageNumber = Math.Clamp(value, 1, MaxPageNumber);
+    }
     public int PageSize
     {
         get => _pageSize;
-        set => _pageSize = value > MaxPageSize ? MaxPageSize : (value < 1 ? 1 : value);
+        set => _pageSize = Math.Clamp(value, 1, MaxPageSize);
     }
+
+    // Solo para reportes internos: salta el tope de MaxPageSize (no lo enlaza el model binding).
+    internal void SetPageSizeUnchecked(int size) => _pageSize = size;
 }

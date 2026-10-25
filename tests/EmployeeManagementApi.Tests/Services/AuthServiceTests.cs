@@ -24,7 +24,7 @@ public class AuthServiceTests
     }
 
     [Fact]
-    public async Task RegisterAsync_ConDatosValidos_GuardaContraseñaHasheadaYDevuelveToken()
+    public async Task RegisterAsync_ConDatosValidos_GuardaContraseñaHasheadaYNoDevuelveToken()
     {
         var service = CreateService(out var context);
 
@@ -36,7 +36,7 @@ public class AuthServiceTests
             Role = "Admin"
         });
 
-        result.Token.Should().NotBeNullOrEmpty();
+        result.Username.Should().Be("carlos");
         result.Role.Should().Be("Admin");
 
         var userInDb = context.Users.First(u => u.Username == "carlos");

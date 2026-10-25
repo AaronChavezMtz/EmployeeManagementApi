@@ -3,10 +3,8 @@
    Script complementario: procedimiento almacenado + vista.
    Ejecutar DESPUÉS de aplicar las migraciones de Entity Framework Core
    (las migraciones crean las tablas Departments y Employees).
+   Ejecutar conectado a la base de la app (sin USE: Azure SQL no lo admite).
    ========================================================================= */
-
-USE EmployeeManagementDb;
-GO
 
 -- =========================================================================
 -- VISTA: vw_DepartmentSummary
