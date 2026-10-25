@@ -303,11 +303,23 @@ void EnsureOwnerAdmin(AppDbContext db, string section)
     var user = db.Users.FirstOrDefault(u => u.Username == username);
     if (user is null)
     {
-        var email = builder.Configuration[$"{section}:Email"];
+        var configuredEmail = builder.Configuration[$"{section}:Email"];
+        var email = string.IsNullOrWhiteSpace(configuredEmail) ? $"{username}@local" : configuredEmail.Trim().ToLower();
+
+        // El correo es único: si otra cuenta ya lo usa, crear el admin rompería el arranque (error SQL 2601).
+        var emailOwner = db.Users.Where(u => u.Email == email).Select(u => u.Username).FirstOrDefault();
+        if (emailOwner is not null)
+        {
+            Log.Error("No se creó el admin '{Username}' ({Section}): el correo {Email} ya pertenece al usuario '{Owner}'. " +
+                      "Usa otro {Section}:Email o pon {Section}:Username = '{Owner}'.",
+                      username, section, email, emailOwner, section, section, emailOwner);
+            return;
+        }
+
         user = new User
         {
             Username = username,
-            Email = string.IsNullOrWhiteSpace(email) ? $"{username}@local" : email,
+            Email = email,
             CreatedAt = DateTime.UtcNow
         };
         db.Users.Add(user);
