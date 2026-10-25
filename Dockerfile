@@ -18,4 +18,7 @@ COPY --from=build /app/publish .
 ENV ASPNETCORE_ENVIRONMENT=Production
 EXPOSE 8080
 
+# Usuario sin privilegios que ya trae la imagen oficial de .NET 8.
+USER $APP_UID
+
 ENTRYPOINT ["dotnet", "EmployeeManagementApi.dll"]

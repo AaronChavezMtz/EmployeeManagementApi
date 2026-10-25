@@ -13,6 +13,8 @@ namespace EmployeeManagementApi.Services;
 
 public class AuthService : IAuthService
 {
+    private static readonly string DummyHash = BCrypt.Net.BCrypt.HashPassword(Guid.NewGuid().ToString(), workFactor: 12);
+
     private readonly AppDbContext _context;
     private readonly JwtSettings _jwtSettings;
     private readonly ILogger<AuthService> _logger;
@@ -30,7 +32,9 @@ public class AuthService : IAuthService
             .FirstOrDefaultAsync(u => u.Username == dto.Username && u.IsActive);
 
         // Mensaje genérico a propósito: no revela si el usuario existe o no (evita enumeración de cuentas).
-        if (user is null || !BCrypt.Net.BCrypt.Verify(dto.Password, user.PasswordHash))
+        // Se verifica contra un hash ficticio si el usuario no existe, para que el tiempo de respuesta tampoco lo revele.
+        var passwordOk = BCrypt.Net.BCrypt.Verify(dto.Password, user?.PasswordHash ?? DummyHash);
+        if (user is null || !passwordOk)
         {
             _logger.LogWarning("Intento de login fallido para el usuario '{Username}'", dto.Username);
             throw new BusinessRuleException("Usuario o contraseña incorrectos");
@@ -40,7 +44,7 @@ public class AuthService : IAuthService
         return GenerateToken(user);
     }
 
-    public async Task<AuthResponseDto> RegisterAsync(RegisterUserDto dto)
+    public async Task<UserDto> RegisterAsync(RegisterUserDto dto)
     {
         var exists = await _context.Users.AnyAsync(u => u.Username == dto.Username || u.Email == dto.Email);
         if (exists)
@@ -62,7 +66,13 @@ public class AuthService : IAuthService
         await _context.SaveChangesAsync();
 
         _logger.LogInformation("Usuario creado: {Username} con rol {Role}", user.Username, user.Role);
-        return GenerateToken(user);
+
+        // No se devuelve un token del usuario nuevo: el admin podría usarlo para actuar en su nombre.
+        return new UserDto
+        {
+            Id = user.Id, Username = user.Username, Email = user.Email,
+            Role = user.Role.ToString(), IsActive = user.IsActive, CreatedAt = user.CreatedAt
+        };
     }
 
     private AuthResponseDto GenerateToken(User user)

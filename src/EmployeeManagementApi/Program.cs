@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using System.Text;
 using System.Threading.RateLimiting;
 using EmployeeManagementApi.Common;
@@ -6,6 +7,7 @@ using EmployeeManagementApi.Middleware;
 using EmployeeManagementApi.Models;
 using EmployeeManagementApi.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
@@ -31,6 +33,15 @@ builder.Host.UseSerilog();
 // Render (y otros PaaS) inyectan el puerto vía la variable de entorno PORT.
 var port = Environment.GetEnvironmentVariable("PORT") ?? "8080";
 builder.WebHost.ConfigureKestrel(options => options.ListenAnyIP(int.Parse(port)));
+
+// Detrás del proxy de Render la IP real del cliente llega en X-Forwarded-For.
+// Sin esto, el rate limiting agruparía a todos los clientes bajo la IP del proxy.
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.KnownNetworks.Clear(); // la IP del proxy de Render no es fija
+    options.KnownProxies.Clear();
+});
 
 // ---------- Servicios ----------
 builder.Services.AddControllers()
@@ -71,6 +82,18 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
 builder.Services.AddScoped<IReportService, ReportService>();
+builder.Services.AddScoped<IDemoService, DemoService>();
+
+// ---------- Demo ----------
+// El admin inicial y el superusuario siempre quedan protegidos, además de Demo:ProtectedUsers.
+var initialAdminUsername = builder.Configuration["InitialAdmin:Username"] ?? "admin";
+var superAdminUsername = builder.Configuration["SuperAdmin:Username"];
+builder.Services.Configure<DemoSettings>(builder.Configuration.GetSection("Demo"));
+builder.Services.PostConfigure<DemoSettings>(options =>
+{
+    options.ProtectedUsers = string.Join(',', options.ProtectedUsers, initialAdminUsername, superAdminUsername);
+    options.ResetUsers = string.Join(',', initialAdminUsername, superAdminUsername);
+});
 
 // ---------- JWT ----------
 var jwtSettings = builder.Configuration.GetSection("Jwt").Get<JwtSettings>()
@@ -99,6 +122,27 @@ builder.Services.AddAuthentication(options =>
         IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings.SecretKey)),
         ClockSkew = TimeSpan.FromMinutes(1)
     };
+
+    // Un token firmado sigue siendo válido hasta que expira; aquí se rechaza si la cuenta
+    // ya no existe, se desactivó o cambió de rol (por ejemplo, tras reiniciar la demo).
+    options.Events = new JwtBearerEvents
+    {
+        OnTokenValidated = async context =>
+        {
+            var username = context.Principal?.FindFirstValue(ClaimTypes.NameIdentifier);
+            var roleClaim = context.Principal?.FindFirstValue(ClaimTypes.Role);
+            if (username is null || !Enum.TryParse<UserRole>(roleClaim, out var role))
+            {
+                context.Fail("Token sin usuario o rol válido.");
+                return;
+            }
+
+            var db = context.HttpContext.RequestServices.GetRequiredService<AppDbContext>();
+            var stillValid = await db.Users.AnyAsync(u => u.Username == username && u.IsActive && u.Role == role);
+            if (!stillValid)
+                context.Fail("La cuenta ya no está activa o cambió de rol.");
+        }
+    };
 });
 
 builder.Services.AddAuthorization();
@@ -126,6 +170,17 @@ builder.Services.AddRateLimiter(options =>
             {
                 PermitLimit = 5,
                 Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0
+            }));
+
+    // Reinicio de la demo: un solo contador para todos, es una operación pesada.
+    options.AddPolicy("demo-reset", _ =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: "demo-reset",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 2,
+                Window = TimeSpan.FromMinutes(5),
                 QueueLimit = 0
             }));
 });
@@ -177,16 +232,31 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("Default", policy =>
     {
-        if (allowedOrigins.Length > 0)
+        // En local se permite cualquier origen (Vite en localhost:5173, etc.).
+        // En producción solo AllowedOrigins; si está vacío, ningún origen de navegador.
+        if (builder.Environment.IsDevelopment())
+            policy.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod();
+        else if (allowedOrigins.Length > 0)
             policy.WithOrigins(allowedOrigins).AllowAnyHeader().AllowAnyMethod();
-        else
-            policy.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod(); // útil en demo/portafolio
     });
 });
 
 var app = builder.Build();
 
 // ---------- Middleware pipeline ----------
+app.UseForwardedHeaders();
+if (!app.Environment.IsDevelopment())
+    app.UseHsts();
+
+app.Use(async (context, next) =>
+{
+    var headers = context.Response.Headers;
+    headers["X-Content-Type-Options"] = "nosniff";
+    headers["X-Frame-Options"] = "DENY";
+    headers["Referrer-Policy"] = "no-referrer";
+    await next();
+});
+
 app.UseSerilogRequestLogging(); // log estructurado de cada request (método, ruta, status, duración)
 app.UseMiddleware<ExceptionMiddleware>();
 
@@ -205,37 +275,48 @@ app.MapControllers();
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok", timeUtc = DateTime.UtcNow }));
 
-// Aplica migraciones pendientes y crea el admin inicial si no existe ningún usuario.
+// Aplica migraciones pendientes y asegura las cuentas de administración privadas.
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     db.Database.Migrate();
 
-    if (!db.Users.Any())
-    {
-        var adminUsername = builder.Configuration["InitialAdmin:Username"] ?? "admin";
-        var adminPassword = builder.Configuration["InitialAdmin:Password"];
-        var adminEmail = builder.Configuration["InitialAdmin:Email"] ?? "admin@local";
+    if (string.IsNullOrWhiteSpace(builder.Configuration["InitialAdmin:Password"]) && !db.Users.Any())
+        Log.Warning("No se configuró InitialAdmin:Password; no se creó ningún usuario administrador. " +
+                    "Configura esa variable y reinicia la app para poder autenticarte.");
 
-        if (string.IsNullOrWhiteSpace(adminPassword))
-        {
-            Log.Warning("No se configuró InitialAdmin:Password; no se creó ningún usuario administrador. " +
-                        "Configura esa variable y reinicia la app para poder autenticarte.");
-        }
-        else
-        {
-            db.Users.Add(new User
-            {
-                Username = adminUsername,
-                Email = adminEmail,
-                PasswordHash = BCrypt.Net.BCrypt.HashPassword(adminPassword, workFactor: 12),
-                Role = UserRole.Admin,
-                CreatedAt = DateTime.UtcNow
-            });
-            db.SaveChanges();
-            Log.Information("Usuario administrador inicial '{Username}' creado.", adminUsername);
-        }
-    }
+    EnsureOwnerAdmin(db, "InitialAdmin");
+    EnsureOwnerAdmin(db, "SuperAdmin");
 }
 
 app.Run();
+
+// Crea la cuenta si no existe y sincroniza su contraseña con la configuración en cada arranque
+// (para rotarla basta cambiar la variable de entorno y reiniciar).
+void EnsureOwnerAdmin(AppDbContext db, string section)
+{
+    var username = builder.Configuration[$"{section}:Username"];
+    var password = builder.Configuration[$"{section}:Password"];
+    if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password))
+        return;
+
+    var user = db.Users.FirstOrDefault(u => u.Username == username);
+    if (user is null)
+    {
+        var email = builder.Configuration[$"{section}:Email"];
+        user = new User
+        {
+            Username = username,
+            Email = string.IsNullOrWhiteSpace(email) ? $"{username}@local" : email,
+            CreatedAt = DateTime.UtcNow
+        };
+        db.Users.Add(user);
+        Log.Information("Usuario administrador '{Username}' creado.", username);
+    }
+
+    if (string.IsNullOrEmpty(user.PasswordHash) || !BCrypt.Net.BCrypt.Verify(password, user.PasswordHash))
+        user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(password, workFactor: 12);
+    user.Role = UserRole.Admin;
+    user.IsActive = true;
+    db.SaveChanges();
+}

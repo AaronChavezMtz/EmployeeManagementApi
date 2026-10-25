@@ -1,5 +1,6 @@
 # Entorno de desarrollo local: API + SQL Server en contenedores.
 # Uso: docker compose up --build
+# Las credenciales de abajo son solo para uso local; nunca las uses en producción.
 version: "3.9"
 
 services:

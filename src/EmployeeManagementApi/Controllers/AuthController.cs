@@ -30,7 +30,7 @@ public class AuthController : ControllerBase
     /// <summary>Crea un nuevo usuario (solo administradores).</summary>
     [HttpPost("register")]
     [Authorize(Roles = "Admin")]
-    public async Task<ActionResult<AuthResponseDto>> Register([FromBody] RegisterUserDto dto)
+    public async Task<ActionResult<UserDto>> Register([FromBody] RegisterUserDto dto)
     {
         var result = await _authService.RegisterAsync(dto);
         return Ok(result);

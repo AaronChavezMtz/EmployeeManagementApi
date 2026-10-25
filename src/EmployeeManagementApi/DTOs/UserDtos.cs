@@ -9,6 +9,7 @@ public class UserDto
     public string Email { get; set; } = string.Empty;
     public string Role { get; set; } = string.Empty;
     public bool IsActive { get; set; }
+    public bool IsProtected { get; set; } // cuenta de demo/superusuario: no se puede modificar
     public DateTime CreatedAt { get; set; }
 }
 
