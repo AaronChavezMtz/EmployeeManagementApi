@@ -63,6 +63,31 @@ public class EmployeeServiceTests
     }
 
     [Fact]
+    public async Task CreateAsync_ConFechaDeContratacionFutura_LanzaBusinessRuleException()
+    {
+        var service = CreateService(out _);
+        var dto = ValidEmployee();
+        dto.HireDate = DateTime.UtcNow.AddDays(10);
+
+        var act = async () => await service.CreateAsync(dto);
+
+        await act.Should().ThrowAsync<BusinessRuleException>();
+    }
+
+    [Fact]
+    public async Task CreateAsync_ContratadoAntesDeLos18_LanzaBusinessRuleException()
+    {
+        var service = CreateService(out _);
+        var dto = ValidEmployee();
+        dto.BirthDate = DateTime.UtcNow.AddYears(-20);
+        dto.HireDate = DateTime.UtcNow.AddYears(-3); // tenía 17
+
+        var act = async () => await service.CreateAsync(dto);
+
+        await act.Should().ThrowAsync<BusinessRuleException>();
+    }
+
+    [Fact]
     public async Task GetByIdAsync_ConIdInexistente_LanzaNotFoundException()
     {
         var service = CreateService(out _);
