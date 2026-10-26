@@ -50,8 +50,8 @@ public class AuthService : IAuthService
         if (exists)
             throw new BusinessRuleException("Ya existe un usuario con ese nombre de usuario o correo");
 
-        if (!Enum.TryParse<UserRole>(dto.Role, ignoreCase: true, out var role))
-            throw new BusinessRuleException("El rol debe ser 'Admin' o 'Viewer'");
+        var role = UserRoles.Parse(dto.Role);
+        var employeeId = await UserLinkRules.ResolveEmployeeIdAsync(_context, role, dto.EmployeeId);
 
         var user = new User
         {
@@ -59,6 +59,7 @@ public class AuthService : IAuthService
             Email = dto.Email.Trim().ToLower(),
             PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password, workFactor: 12),
             Role = role,
+            EmployeeId = employeeId,
             CreatedAt = DateTime.UtcNow
         };
 
@@ -68,11 +69,8 @@ public class AuthService : IAuthService
         _logger.LogInformation("Usuario creado: {Username} con rol {Role}", user.Username, user.Role);
 
         // No se devuelve un token del usuario nuevo: el admin podría usarlo para actuar en su nombre.
-        return new UserDto
-        {
-            Id = user.Id, Username = user.Username, Email = user.Email,
-            Role = user.Role.ToString(), IsActive = user.IsActive, CreatedAt = user.CreatedAt
-        };
+        await _context.Entry(user).Reference(u => u.Employee).LoadAsync();
+        return UserDto.From(user);
     }
 
     private AuthResponseDto GenerateToken(User user)

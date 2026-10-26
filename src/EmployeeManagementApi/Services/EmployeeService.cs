@@ -231,6 +231,10 @@ public class EmployeeService : IEmployeeService
         employee.TerminationReason = dto.Reason!.Value;
         employee.UpdatedAt = DateTime.UtcNow;
 
+        // Un ex empleado ya no debe entrar al portal (el JWT se revalida en cada petición).
+        var linkedUsers = await _context.Users.Where(u => u.EmployeeId == id).ToListAsync();
+        linkedUsers.ForEach(u => u.IsActive = false);
+
         _context.EmployeeHistories.Add(new EmployeeHistory
         {
             EmployeeId = id,
@@ -291,6 +295,26 @@ public class EmployeeService : IEmployeeService
         TerminationReason.ContractEnd => "Término de contrato",
         _ => "Baja"
     };
+
+    public async Task<EmployeeDto> UpdatePhoneAsync(int id, string? phone)
+    {
+        var employee = await FindWithDepartmentAsync(id);
+        var newPhone = string.IsNullOrWhiteSpace(phone) ? null : phone.Trim();
+        if (employee.Phone == newPhone)
+            return MapToDto(employee);
+
+        _context.EmployeeHistories.Add(new EmployeeHistory
+        {
+            EmployeeId = id, ChangeType = HistoryChangeType.Updated,
+            OldValue = employee.Phone, NewValue = $"Teléfono actualizado por el empleado: {newPhone ?? "(vacío)"}",
+            ChangedBy = CurrentUsername, ChangedAtUtc = DateTime.UtcNow
+        });
+        employee.Phone = newPhone;
+        employee.UpdatedAt = DateTime.UtcNow;
+        await _context.SaveChangesAsync();
+
+        return MapToDto(employee);
+    }
 
     public async Task<IEnumerable<EmployeeHistoryDto>> GetHistoryAsync(int employeeId)
     {

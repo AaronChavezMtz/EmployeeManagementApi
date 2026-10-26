@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using EmployeeManagementApi.Models;
 
 namespace EmployeeManagementApi.DTOs;
 
@@ -10,12 +11,25 @@ public class UserDto
     public string Role { get; set; } = string.Empty;
     public bool IsActive { get; set; }
     public bool IsProtected { get; set; } // cuenta de demo/superusuario: no se puede modificar
+    public int? EmployeeId { get; set; }
+    public string? EmployeeName { get; set; }
     public DateTime CreatedAt { get; set; }
+
+    // Requiere haber cargado user.Employee para mostrar el nombre.
+    public static UserDto From(User u, bool isProtected = false) => new()
+    {
+        Id = u.Id, Username = u.Username, Email = u.Email,
+        Role = u.Role.ToString(), IsActive = u.IsActive, IsProtected = isProtected,
+        EmployeeId = u.EmployeeId,
+        EmployeeName = u.Employee is null ? null : $"{u.Employee.FirstName} {u.Employee.LastName}",
+        CreatedAt = u.CreatedAt
+    };
 }
 
 public class UpdateUserDto
 {
     [Required]
-    public string Role { get; set; } = string.Empty; // "Admin" o "Viewer"
+    public string Role { get; set; } = string.Empty; // "Admin" o "Employee"
     public bool IsActive { get; set; } = true;
+    public int? EmployeeId { get; set; } // obligatorio si Role = "Employee"
 }

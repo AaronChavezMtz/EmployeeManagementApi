@@ -17,7 +17,7 @@ API REST para la administración de empleados y departamentos de una empresa: al
 > | Rol | Usuario | Contraseña | Permisos |
 > |---|---|---|---|
 > | Administrador | `adminprueba` | `123_Prueba` | Acceso completo: crear, editar y eliminar |
-> | Solo lectura | `usuariolector` | `lector_123` | Solo puede consultar información |
+> | Empleado | `usuariolector` | `lector_123` | Portal del empleado: solo su ficha, su historial y su teléfono |
 >
 > *Nota: el servicio gratuito de Render puede tardar ~30-60 s en responder la primera vez (arranque en frío). Los datos de la demo son ficticios; no registres información real. Las cuentas de demo están protegidas (no se pueden desactivar ni cambiar de rol) y el dueño de la demo la restaura periódicamente.*
 
@@ -53,7 +53,8 @@ Arquitectura en capas: los **controllers** solo manejan HTTP, los **services** c
 
 - **CRUD completo** de empleados y departamentos, con DTOs separados de las entidades
 - **Búsqueda y filtros**: por nombre/correo/puesto, departamento, estado, rango de salario, rango de fechas de contratación, con orden y paginación
-- **Autenticación JWT** con dos roles: `Admin` (acceso completo) y `Viewer` (solo lectura)
+- **Autenticación JWT** con dos roles: `Admin` (RH, acceso completo) y `Employee` (portal del empleado)
+- **Portal del empleado**: cada usuario `Employee` está vinculado a su ficha y solo ve su propia información; puede actualizar su teléfono
 - **Historial de cambios**: cada alta, cambio de departamento, de salario, baja o recontratación queda registrado con quién lo hizo y cuándo
 - **Bajas y recontratación**: la baja guarda fecha y motivo (renuncia, despido, término de contrato, otro); un empleado dado de baja se puede recontratar
 - **Gestión de usuarios** desde la propia API (crear, cambiar rol, activar/desactivar)
@@ -81,12 +82,13 @@ Arquitectura en capas: los **controllers** solo manejan HTTP, los **services** c
 
 ## Modelo de datos
 
-> `ChangeType` es un enum (`Created`, `Updated`, `DepartmentChanged`, `SalaryChanged`, `Activated`, `Deactivated`) y `Role` otro (`Viewer`, `Admin`). `ChangedBy` guarda el *username* de quien hizo el cambio, por eso no es una llave foránea hacia `USER`: el historial se conserva aunque la cuenta cambie o se desactive.
+> `ChangeType` es un enum (`Created`, `Updated`, `DepartmentChanged`, `SalaryChanged`, `Activated`, `Deactivated`) y `Role` otro (`Employee`, `Admin`). `USER.EmployeeId` vincula una cuenta `Employee` con su ficha (único, opcional para `Admin`). `ChangedBy` guarda el *username* de quien hizo el cambio, por eso no es una llave foránea hacia `USER`: el historial se conserva aunque la cuenta cambie o se desactive.
 
 ```mermaid
 erDiagram
     DEPARTMENT ||--o{ EMPLOYEE : tiene
     EMPLOYEE ||--o{ EMPLOYEE_HISTORY : registra
+    EMPLOYEE ||--o| USER : "accede como"
 
     DEPARTMENT {
         int Id PK
@@ -122,6 +124,7 @@ erDiagram
     }
     USER {
         int Id PK
+        int EmployeeId FK
         string Username
         string Email
         string PasswordHash
@@ -155,26 +158,29 @@ La referencia completa e interactiva está en [Swagger](https://employeemanageme
 | Método | Ruta | Descripción | Acceso |
 |---|---|---|---|
 | `POST` | `/api/Auth/login` | Inicia sesión y devuelve un token JWT | Público |
-| `POST` | `/api/Auth/register` | Crea un nuevo usuario | Admin |
+| `POST` | `/api/Auth/register` | Crea un usuario (`employeeId` obligatorio si el rol es `Employee`) | Admin |
 | `GET` | `/api/Users` | Lista los usuarios del sistema | Admin |
-| `PUT` | `/api/Users/{id}` | Cambia el rol o el estado activo de un usuario | Admin |
-| `GET` | `/api/Employees` | Lista con búsqueda, filtros, orden y paginación | Admin, Viewer |
-| `GET` | `/api/Employees/{id}` | Detalle de un empleado | Admin, Viewer |
-| `GET` | `/api/Employees/{id}/history` | Bitácora de cambios (altas, departamento, salario, estado) | Admin, Viewer |
+| `PUT` | `/api/Users/{id}` | Cambia el rol, el estado activo o el empleado vinculado | Admin |
+| `GET` | `/api/me` | Ficha del empleado vinculado al usuario actual | Employee |
+| `GET` | `/api/me/history` | Historial del empleado actual | Employee |
+| `PUT` | `/api/me/phone` | Actualiza el teléfono del empleado actual | Employee |
+| `GET` | `/api/Employees` | Lista con búsqueda, filtros, orden y paginación | Admin |
+| `GET` | `/api/Employees/{id}` | Detalle de un empleado | Admin |
+| `GET` | `/api/Employees/{id}/history` | Bitácora de cambios (altas, departamento, salario, estado) | Admin |
 | `POST` | `/api/Employees` | Crea un empleado | Admin |
 | `PUT` | `/api/Employees/{id}` | Actualiza un empleado | Admin |
 | `POST` | `/api/Employees/{id}/terminate` | Da de baja (baja lógica) con fecha y motivo | Admin |
 | `POST` | `/api/Employees/{id}/rehire` | Recontrata a un empleado dado de baja | Admin |
-| `GET` | `/api/Departments` | Lista departamentos con conteo de empleados activos | Admin, Viewer |
-| `GET` | `/api/Departments/{id}` | Detalle de un departamento | Admin, Viewer |
-| `GET` | `/api/Departments/summary` | Resumen por departamento (vista `vw_DepartmentSummary`) | Admin, Viewer |
+| `GET` | `/api/Departments` | Lista departamentos con conteo de empleados activos | Admin |
+| `GET` | `/api/Departments/{id}` | Detalle de un departamento | Admin |
+| `GET` | `/api/Departments/summary` | Resumen por departamento (vista `vw_DepartmentSummary`) | Admin |
 | `POST` | `/api/Departments` | Crea un departamento | Admin |
 | `PUT` | `/api/Departments/{id}` | Actualiza un departamento | Admin |
 | `DELETE` | `/api/Departments/{id}` | Elimina un departamento (solo si no tiene empleados asignados) | Admin |
-| `GET` | `/api/Dashboard/kpis` | Plantilla, rotación de 12 meses, antigüedad, bajas por motivo y tendencia mensual | Admin, Viewer |
-| `GET` | `/api/Reports/employees/excel` | Exporta empleados a Excel (acepta los mismos filtros de búsqueda) | Admin, Viewer |
-| `GET` | `/api/Reports/departments/excel` | Exporta el resumen por departamento a Excel | Admin, Viewer |
-| `GET` | `/api/Reports/departments/pdf` | Exporta el resumen por departamento a PDF | Admin, Viewer |
+| `GET` | `/api/Dashboard/kpis` | Plantilla, rotación de 12 meses, antigüedad, bajas por motivo y tendencia mensual | Admin |
+| `GET` | `/api/Reports/employees/excel` | Exporta empleados a Excel (acepta los mismos filtros de búsqueda) | Admin |
+| `GET` | `/api/Reports/departments/excel` | Exporta el resumen por departamento a Excel | Admin |
+| `GET` | `/api/Reports/departments/pdf` | Exporta el resumen por departamento a PDF | Admin |
 | `GET` | `/api/Demo` | Indica si el usuario actual puede reiniciar la demo | Admin |
 | `POST` | `/api/Demo/reset` | Restaura los datos de la demo (solo con `Demo__Enabled=true`; 2 veces cada 5 min) | Admin inicial y superusuario |
 | `GET` | `/health` | Health check del servicio | Público |

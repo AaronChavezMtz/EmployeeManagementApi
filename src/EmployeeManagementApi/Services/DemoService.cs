@@ -29,6 +29,8 @@ public class DemoService : IDemoService
 
         var users = await _context.Users.ToListAsync();
         _context.Users.RemoveRange(users.Where(u => !_demo.IsProtected(u.Username)));
+        var protectedEmployeeUsers = users.Where(u => _demo.IsProtected(u.Username) && u.Role == UserRole.Employee).ToList();
+        protectedEmployeeUsers.ForEach(u => u.EmployeeId = null); // se vuelven a vincular tras sembrar
 
         // Primero los borrados: los nombres de departamento son únicos y se vuelven a insertar.
         await _context.SaveChangesAsync();
@@ -76,6 +78,15 @@ public class DemoService : IDemoService
         };
         _context.Employees.AddRange(employees);
         await _context.SaveChangesAsync();
+
+        // Las cuentas de demo con rol Employee quedan vinculadas a empleados activos sembrados,
+        // así el portal del empleado siempre tiene datos que mostrar.
+        var activeEmployees = employees.Where(e => e.IsActive).ToList();
+        for (var i = 0; i < protectedEmployeeUsers.Count && i < activeEmployees.Count; i++)
+        {
+            protectedEmployeeUsers[i].EmployeeId = activeEmployees[i].Id;
+            protectedEmployeeUsers[i].IsActive = true;
+        }
 
         _context.EmployeeHistories.AddRange(employees.Select(e => new EmployeeHistory
         {

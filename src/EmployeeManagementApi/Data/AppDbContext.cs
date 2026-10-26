@@ -54,6 +54,13 @@ public class AppDbContext : DbContext
             entity.HasIndex(u => u.Email).IsUnique();
             entity.Property(u => u.PasswordHash).IsRequired();
             entity.Property(u => u.Role).HasConversion<string>().HasMaxLength(20);
+
+            // Un empleado tiene como mucho un usuario; el índice único ignora los NULL.
+            entity.HasOne(u => u.Employee)
+                  .WithMany()
+                  .HasForeignKey(u => u.EmployeeId)
+                  .OnDelete(DeleteBehavior.Restrict);
+            entity.HasIndex(u => u.EmployeeId).IsUnique().HasFilter("[EmployeeId] IS NOT NULL");
         });
 
         modelBuilder.Entity<EmployeeHistory>(entity =>
