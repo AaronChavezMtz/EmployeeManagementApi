@@ -188,7 +188,8 @@ La referencia completa e interactiva está en [Swagger](https://employeemanageme
 | `GET` | `/api/Employees` | Lista con búsqueda, filtros, orden y paginación | Admin |
 | `GET` | `/api/Employees/{id}` | Detalle de un empleado | Admin |
 | `GET` | `/api/Employees/{id}/history` | Bitácora de cambios (altas, departamento, salario, estado) | Admin |
-| `POST` | `/api/Employees` | Crea un empleado | Admin |
+| `POST` | `/api/Employees` | Crea un empleado (con `grantPortalAccess: true` crea también su usuario del portal) | Admin |
+| `POST` | `/api/Employees/{id}/portal-access` | Crea el usuario del portal (usuario = correo, contraseña temporal devuelta una sola vez) | Admin |
 | `PUT` | `/api/Employees/{id}` | Actualiza un empleado | Admin |
 | `POST` | `/api/Employees/{id}/terminate` | Da de baja (baja lógica) con fecha y motivo | Admin |
 | `POST` | `/api/Employees/{id}/rehire` | Recontrata a un empleado dado de baja | Admin |

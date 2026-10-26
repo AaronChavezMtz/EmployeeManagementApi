@@ -3,6 +3,7 @@ using EmployeeManagementApi.Data;
 using EmployeeManagementApi.DTOs;
 using EmployeeManagementApi.Models;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Cryptography;
 using Microsoft.Extensions.Options;
 
 namespace EmployeeManagementApi.Services;
@@ -70,6 +71,50 @@ public class UserService : IUserService
         user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.NewPassword, workFactor: 12);
         user.MustChangePassword = false;
         await _context.SaveChangesAsync();
+    }
+
+    // Sin caracteres ambiguos (0/O, 1/l/I) porque la contraseña se dicta o se copia a mano.
+    private const string TemporaryPasswordAlphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
+
+    // El usuario del portal es el correo del empleado (si cabe en los 50 caracteres del nombre de usuario).
+    private static string PortalUsernameFor(string email)
+    {
+        var normalized = email.Trim().ToLowerInvariant();
+        if (normalized.Length <= 50)
+            return normalized;
+        var localPart = normalized.Split('@')[0];
+        return localPart[..Math.Min(50, localPart.Length)];
+    }
+
+    public async Task EnsurePortalUsernameAvailableAsync(string employeeEmail)
+    {
+        var username = PortalUsernameFor(employeeEmail);
+        var email = employeeEmail.Trim().ToLowerInvariant();
+        if (await _context.Users.AnyAsync(u => u.Username == username || u.Email == email))
+            throw new BusinessRuleException($"Ya existe un usuario con el nombre '{username}' o con ese correo; vincúlalo desde Usuarios");
+    }
+
+    public async Task<PortalAccessDto> CreatePortalAccessAsync(int employeeId)
+    {
+        var linkedId = await UserLinkRules.ResolveEmployeeIdAsync(_context, UserRole.Employee, employeeId);
+        var employee = await _context.Employees.FindAsync(linkedId!.Value);
+        await EnsurePortalUsernameAvailableAsync(employee!.Email);
+
+        var password = RandomNumberGenerator.GetString(TemporaryPasswordAlphabet, 12);
+        var user = new User
+        {
+            Username = PortalUsernameFor(employee.Email),
+            Email = employee.Email.Trim().ToLowerInvariant(),
+            PasswordHash = BCrypt.Net.BCrypt.HashPassword(password, workFactor: 12),
+            Role = UserRole.Employee,
+            EmployeeId = employee.Id,
+            MustChangePassword = true,
+            CreatedAt = DateTime.UtcNow
+        };
+        _context.Users.Add(user);
+        await _context.SaveChangesAsync();
+
+        return new PortalAccessDto { Username = user.Username, TemporaryPassword = password };
     }
 
     public async Task<int> GetLinkedEmployeeIdAsync(string username)

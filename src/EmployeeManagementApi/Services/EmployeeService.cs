@@ -91,7 +91,9 @@ public class EmployeeService : IEmployeeService
         if (employee is null)
             throw new NotFoundException($"No se encontró el empleado con id {id}");
 
-        return MapToDto(employee);
+        var dto = MapToDto(employee);
+        dto.PortalUsername = await _context.Users.Where(u => u.EmployeeId == id).Select(u => u.Username).FirstOrDefaultAsync();
+        return dto;
     }
 
     public async Task<EmployeeDto> CreateAsync(CreateEmployeeDto dto)

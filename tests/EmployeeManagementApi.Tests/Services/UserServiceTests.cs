@@ -168,4 +168,39 @@ public class UserServiceTests
 
         await act.Should().ThrowAsync<BusinessRuleException>();
     }
+
+    [Fact]
+    public async Task CreatePortalAccessAsync_CreaUsuarioEmployeeVinculadoConContrasenaTemporal()
+    {
+        var context = TestDbContextFactory.Create();
+        var employee = NewEmployee("Ana.Ruiz@Test.com");
+        context.Employees.Add(employee);
+        await context.SaveChangesAsync();
+        var service = new UserService(context, Options.Create(new DemoSettings()));
+
+        var access = await service.CreatePortalAccessAsync(employee.Id);
+
+        access.Username.Should().Be("ana.ruiz@test.com");
+        access.TemporaryPassword.Should().HaveLength(12);
+        var user = context.Users.Single();
+        user.Role.Should().Be(UserRole.Employee);
+        user.EmployeeId.Should().Be(employee.Id);
+        user.MustChangePassword.Should().BeTrue();
+        BCrypt.Net.BCrypt.Verify(access.TemporaryPassword, user.PasswordHash).Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task CreatePortalAccessAsync_SiYaTieneUsuario_LanzaBusinessRuleException()
+    {
+        var context = TestDbContextFactory.Create();
+        var employee = NewEmployee("ana@test.com");
+        context.Employees.Add(employee);
+        await context.SaveChangesAsync();
+        var service = new UserService(context, Options.Create(new DemoSettings()));
+        await service.CreatePortalAccessAsync(employee.Id);
+
+        var act = async () => await service.CreatePortalAccessAsync(employee.Id);
+
+        await act.Should().ThrowAsync<BusinessRuleException>();
+    }
 }
