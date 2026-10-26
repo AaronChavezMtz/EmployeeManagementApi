@@ -7,7 +7,7 @@ namespace EmployeeManagementApi.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize]
+[Authorize(Roles = "Admin")] // RH; el rol Employee solo accede a /api/me
 public class DashboardController : ControllerBase
 {
     private readonly IDashboardService _service;

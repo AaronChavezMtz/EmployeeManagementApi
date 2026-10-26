@@ -48,7 +48,7 @@ public class AuthServiceTests
     public async Task RegisterAsync_ConUsuarioDuplicado_LanzaBusinessRuleException()
     {
         var service = CreateService(out _);
-        var dto = new RegisterUserDto { Username = "ana", Email = "ana@test.com", Password = "Clave1234", Role = "Viewer" };
+        var dto = new RegisterUserDto { Username = "ana", Email = "ana@test.com", Password = "Clave1234", Role = "Admin" };
         await service.RegisterAsync(dto);
 
         var act = async () => await service.RegisterAsync(dto);
@@ -62,7 +62,7 @@ public class AuthServiceTests
         var service = CreateService(out _);
         await service.RegisterAsync(new RegisterUserDto
         {
-            Username = "pedro", Email = "pedro@test.com", Password = "ClaveCorrecta1", Role = "Viewer"
+            Username = "pedro", Email = "pedro@test.com", Password = "ClaveCorrecta1", Role = "Admin"
         });
 
         var act = async () => await service.LoginAsync(new LoginDto { Username = "pedro", Password = "ClaveIncorrecta" });
@@ -76,7 +76,7 @@ public class AuthServiceTests
         var service = CreateService(out _);
         await service.RegisterAsync(new RegisterUserDto
         {
-            Username = "sofia", Email = "sofia@test.com", Password = "MiClave123", Role = "Viewer"
+            Username = "sofia", Email = "sofia@test.com", Password = "MiClave123", Role = "Admin"
         });
 
         var result = await service.LoginAsync(new LoginDto { Username = "sofia", Password = "MiClave123" });
@@ -84,5 +84,33 @@ public class AuthServiceTests
         result.Token.Should().NotBeNullOrEmpty();
         result.Username.Should().Be("sofia");
         result.ExpiresAtUtc.Should().BeAfter(DateTime.UtcNow);
+    }
+
+    [Fact]
+    public async Task RegisterAsync_EmployeeSinEmpleadoVinculado_LanzaBusinessRuleException()
+    {
+        var service = CreateService(out _);
+
+        var act = async () => await service.RegisterAsync(new RegisterUserDto
+        {
+            Username = "nuevo", Email = "nuevo@test.com", Password = "Clave1234", Role = "Employee"
+        });
+
+        await act.Should().ThrowAsync<BusinessRuleException>();
+    }
+
+    [Theory]
+    [InlineData("Viewer")] // rol eliminado
+    [InlineData("7")]      // Enum.TryParse lo aceptaría
+    public async Task RegisterAsync_ConRolInvalido_LanzaBusinessRuleException(string role)
+    {
+        var service = CreateService(out _);
+
+        var act = async () => await service.RegisterAsync(new RegisterUserDto
+        {
+            Username = "nuevo", Email = "nuevo@test.com", Password = "Clave1234", Role = role
+        });
+
+        await act.Should().ThrowAsync<BusinessRuleException>();
     }
 }

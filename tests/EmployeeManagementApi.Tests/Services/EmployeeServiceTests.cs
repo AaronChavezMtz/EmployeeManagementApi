@@ -229,4 +229,17 @@ public class EmployeeServiceTests
 
         history.Should().Contain(h => h.ChangeType == EmployeeManagementApi.Models.HistoryChangeType.DepartmentChanged);
     }
+
+    [Fact]
+    public async Task TerminateAsync_DesactivaElUsuarioVinculado()
+    {
+        var service = CreateService(out var context);
+        var created = await service.CreateAsync(ValidEmployee());
+        context.Users.Add(new User { Username = "juan", Email = "j@test.com", PasswordHash = "x", Role = UserRole.Employee, EmployeeId = created.Id });
+        await context.SaveChangesAsync();
+
+        await service.TerminateAsync(created.Id, new TerminateEmployeeDto { TerminationDate = DateTime.UtcNow, Reason = TerminationReason.Resignation });
+
+        context.Users.Single(u => u.Username == "juan").IsActive.Should().BeFalse();
+    }
 }

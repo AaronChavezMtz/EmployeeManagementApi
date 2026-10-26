@@ -28,7 +28,9 @@ public class RegisterUserDto
     public string Password { get; set; } = string.Empty;
 
     [Required]
-    public string Role { get; set; } = "Viewer"; // "Admin" o "Viewer"
+    public string Role { get; set; } = "Employee"; // "Admin" o "Employee"
+
+    public int? EmployeeId { get; set; } // obligatorio si Role = "Employee"
 }
 
 public class AuthResponseDto

@@ -9,7 +9,7 @@ namespace EmployeeManagementApi.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Produces("application/json")]
-[Authorize] // requiere JWT válido para cualquier endpoint de este controller
+[Authorize(Roles = "Admin")] // RH; el rol Employee solo accede a /api/me
 public class EmployeesController : ControllerBase
 {
     private readonly IEmployeeService _service;
@@ -41,7 +41,6 @@ public class EmployeesController : ControllerBase
 
     /// <summary>Crea un nuevo empleado.</summary>
     [HttpPost]
-    [Authorize(Roles = "Admin")]
     [ProducesResponseType(typeof(EmployeeDto), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<EmployeeDto>> Create([FromBody] CreateEmployeeDto dto)
@@ -52,7 +51,6 @@ public class EmployeesController : ControllerBase
 
     /// <summary>Actualiza un empleado existente.</summary>
     [HttpPut("{id:int}")]
-    [Authorize(Roles = "Admin")]
     [ProducesResponseType(typeof(EmployeeDto), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
     public async Task<ActionResult<EmployeeDto>> Update(int id, [FromBody] UpdateEmployeeDto dto)
@@ -63,7 +61,6 @@ public class EmployeesController : ControllerBase
 
     /// <summary>Da de baja a un empleado (baja lógica) con fecha y motivo.</summary>
     [HttpPost("{id:int}/terminate")]
-    [Authorize(Roles = "Admin")]
     [ProducesResponseType(typeof(EmployeeDto), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status409Conflict)]
     public async Task<ActionResult<EmployeeDto>> Terminate(int id, [FromBody] TerminateEmployeeDto dto)
@@ -71,7 +68,6 @@ public class EmployeesController : ControllerBase
 
     /// <summary>Recontrata a un empleado dado de baja (reinicia su fecha de contratación).</summary>
     [HttpPost("{id:int}/rehire")]
-    [Authorize(Roles = "Admin")]
     [ProducesResponseType(typeof(EmployeeDto), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status409Conflict)]
     public async Task<ActionResult<EmployeeDto>> Rehire(int id, [FromBody] RehireEmployeeDto dto)
