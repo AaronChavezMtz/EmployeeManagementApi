@@ -41,7 +41,7 @@ flowchart LR
     B --> C[Services<br/>lógica de negocio]
     C --> D[EF Core<br/>AppDbContext]
     D --> E[(Azure SQL Database)]
-    C -. sp_SearchEmployees<br/>vw_DepartmentSummary .-> E
+    C -. vw_DepartmentSummary .-> E
     B --> F[Middleware de errores]
     B --> G[Rate limiting]
     B --> H[Serilog]
@@ -58,7 +58,7 @@ Arquitectura en capas: los **controllers** solo manejan HTTP, los **services** c
 - **Gestión de usuarios** desde la propia API (crear, cambiar rol, activar/desactivar)
 - **Dashboard de KPIs**: plantilla activa, tasa de rotación, tendencia de contrataciones de los últimos 12 meses
 - **Reportes exportables** a Excel (ClosedXML) y PDF (QuestPDF)
-- **Procedimiento almacenado** (`sp_SearchEmployees`) y **vista SQL** (`vw_DepartmentSummary`) consumidos desde EF Core
+- **Vista SQL** (`vw_DepartmentSummary`) consumida desde EF Core como entidad sin clave
 - **Logging estructurado** con Serilog y **rate limiting** (protección extra en `/api/auth/login`)
 - **Health check** (`/health`) para monitoreo del servicio
 - **Manejo de errores centralizado** (middleware propio, respuestas JSON consistentes)
@@ -72,7 +72,6 @@ Arquitectura en capas: los **controllers** solo manejan HTTP, los **services** c
 | **DTOs en lugar de exponer entidades** | Evita el *over-posting*, desacopla el contrato público del esquema de base de datos y permite evolucionar ambos por separado. |
 | **Capa de Services** | Mantiene los controllers delgados y la lógica de negocio testeable sin levantar HTTP. |
 | **Atributo de validación propio (`MinimumAge`)** | La regla de edad mínima se declara una vez sobre el DTO y se reutiliza, con pruebas unitarias dedicadas. |
-| **Procedimiento almacenado para búsqueda** | La búsqueda con múltiples filtros opcionales, orden y paginación se resuelve en una sola consulta optimizada en SQL Server. |
 | **Vista SQL para resumen de departamentos** | Agregaciones de solo lectura reutilizables y fáciles de consultar desde EF Core. |
 | **BCrypt para contraseñas** | Hash con *salt* y factor de costo configurable; nunca se almacenan contraseñas en texto plano. |
 | **Middleware de errores propio** | Respuestas JSON uniformes y sin filtrar detalles internos al cliente. |
@@ -131,7 +130,7 @@ erDiagram
 
 ## Objetos SQL
 
-Dos objetos viven directamente en SQL Server (script en `Database/schema.sql`) porque EF Core no los gestiona:
+Un objeto vive directamente en SQL Server (script en `Database/schema.sql`) porque EF Core no lo gestiona:
 
 **Vista `vw_DepartmentSummary`** — resumen por departamento (total de empleados, activos, salario promedio y nómina total de los activos). Usa `LEFT JOIN`, por lo que los departamentos sin empleados también aparecen. En EF Core se mapea como entidad sin clave (*keyless*): `DepartmentSummaryView`.
 
@@ -146,12 +145,6 @@ LEFT JOIN dbo.Employees e ON e.DepartmentId = d.Id
 GROUP BY d.Id, d.Name;
 ```
 
-**Procedimiento `sp_SearchEmployees`** — búsqueda por término libre (nombre, apellido, correo o puesto), departamento y estado. Todos los parámetros son opcionales (`NULL` = sin filtro) y el resultado se ordena por apellido y nombre. Se expone en `GET /api/employees/search-sp`.
-
-```sql
-EXEC dbo.sp_SearchEmployees @SearchTerm = 'garcia', @DepartmentId = 3, @IsActive = 1;
-```
-
 ## Endpoints principales
 
 La referencia completa e interactiva está en [Swagger](https://employeemanagementapi-vyx6.onrender.com).
@@ -163,7 +156,6 @@ La referencia completa e interactiva está en [Swagger](https://employeemanageme
 | `GET` | `/api/Users` | Lista los usuarios del sistema | Admin |
 | `PUT` | `/api/Users/{id}` | Cambia el rol o el estado activo de un usuario | Admin |
 | `GET` | `/api/Employees` | Lista con búsqueda, filtros, orden y paginación | Admin, Viewer |
-| `GET` | `/api/Employees/search-sp` | Búsqueda avanzada vía procedimiento almacenado | Admin, Viewer |
 | `GET` | `/api/Employees/{id}` | Detalle de un empleado | Admin, Viewer |
 | `GET` | `/api/Employees/{id}/history` | Bitácora de cambios (altas, departamento, salario, estado) | Admin, Viewer |
 | `POST` | `/api/Employees` | Crea un empleado | Admin |
@@ -219,7 +211,7 @@ src/EmployeeManagementApi/
 ├── Data/              AppDbContext y configuración Fluent API
 ├── Common/            Validaciones propias, manejo de errores, paginación
 ├── Middleware/        Middleware de manejo de errores
-└── Database/          Script SQL con el procedimiento almacenado y la vista
+└── Database/          Script SQL de la vista de resumen
 tests/EmployeeManagementApi.Tests/
 ├── Common/            MinimumAgeAttributeTests
 ├── Controllers/       EmployeesControllerTests
@@ -259,7 +251,7 @@ dotnet run
 
 La app aplica las migraciones pendientes automáticamente al arrancar y crea (o actualiza la contraseña de) el usuario `Admin` definido en `InitialAdmin`, y el de `SuperAdmin` si está configurado.
 
-Luego ejecuta `Database/schema.sql` una vez, conectado a tu base, para crear el procedimiento almacenado y la vista (EF Core no gestiona esos objetos).
+Luego ejecuta `Database/schema.sql` una vez, conectado a tu base, para crear la vista (EF Core no la gestiona).
 
 Swagger queda disponible en la raíz: `http://localhost:8080`
 

@@ -3,7 +3,6 @@ using EmployeeManagementApi.Common;
 using EmployeeManagementApi.Data;
 using EmployeeManagementApi.DTOs;
 using EmployeeManagementApi.Models;
-using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 
 namespace EmployeeManagementApi.Services;
@@ -104,6 +103,12 @@ public class EmployeeService : IEmployeeService
         var emailInUse = await _context.Employees.AnyAsync(e => e.Email.ToLower() == dto.Email.ToLower());
         if (emailInUse)
             throw new BusinessRuleException($"Ya existe un empleado registrado con el correo {dto.Email}");
+
+        if (dto.HireDate.Date > DateTime.UtcNow.Date)
+            throw new BusinessRuleException("La fecha de contratación no puede ser futura");
+
+        if (dto.HireDate.Date < dto.BirthDate.Date.AddYears(18))
+            throw new BusinessRuleException("El empleado debía tener al menos 18 años en la fecha de contratación");
 
         var employee = new Employee
         {
@@ -240,23 +245,6 @@ public class EmployeeService : IEmployeeService
         await _context.SaveChangesAsync();
 
         _logger.LogInformation("Empleado dado de baja: Id {Id} por {User}", id, CurrentUsername);
-    }
-
-    public async Task<IEnumerable<EmployeeDto>> SearchWithStoredProcedureAsync(
-        string? searchTerm, int? departmentId, bool? isActive)
-    {
-        var searchParam = new SqlParameter("@SearchTerm", (object?)searchTerm ?? DBNull.Value);
-        var deptParam = new SqlParameter("@DepartmentId", (object?)departmentId ?? DBNull.Value);
-        var activeParam = new SqlParameter("@IsActive", (object?)isActive ?? DBNull.Value);
-
-        var results = await _context.Employees
-            .FromSqlRaw("EXEC dbo.sp_SearchEmployees @SearchTerm, @DepartmentId, @IsActive",
-                searchParam, deptParam, activeParam)
-            .Include(e => e.Department)
-            .AsNoTracking()
-            .ToListAsync();
-
-        return results.Select(MapToDto);
     }
 
     public async Task<IEnumerable<EmployeeHistoryDto>> GetHistoryAsync(int employeeId)

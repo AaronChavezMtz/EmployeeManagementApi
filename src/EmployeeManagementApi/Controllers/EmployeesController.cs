@@ -81,14 +81,4 @@ public class EmployeesController : ControllerBase
         var history = await _service.GetHistoryAsync(id);
         return Ok(history);
     }
-
-    /// <summary>Búsqueda avanzada usando el procedimiento almacenado sp_SearchEmployees.</summary>
-    [HttpGet("search-sp")]
-    [ProducesResponseType(typeof(IEnumerable<EmployeeDto>), StatusCodes.Status200OK)]
-    public async Task<ActionResult<IEnumerable<EmployeeDto>>> SearchWithStoredProcedure(
-        [FromQuery] string? term, [FromQuery] int? departmentId, [FromQuery] bool? isActive)
-    {
-        var results = await _service.SearchWithStoredProcedureAsync(term, departmentId, isActive);
-        return Ok(results);
-    }
 }
