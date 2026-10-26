@@ -42,6 +42,7 @@ public class AuthServiceTests
         var userInDb = context.Users.First(u => u.Username == "carlos");
         userInDb.PasswordHash.Should().NotBe("ClaveSegura123!"); // nunca en texto plano
         BCrypt.Net.BCrypt.Verify("ClaveSegura123!", userInDb.PasswordHash).Should().BeTrue();
+        userInDb.MustChangePassword.Should().BeTrue(); // la eligió el admin
     }
 
     [Fact]

@@ -60,6 +60,7 @@ public class AuthService : IAuthService
             PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password, workFactor: 12),
             Role = role,
             EmployeeId = employeeId,
+            MustChangePassword = true, // la contraseña la eligió el admin
             CreatedAt = DateTime.UtcNow
         };
 
@@ -101,7 +102,8 @@ public class AuthService : IAuthService
             Token = new JwtSecurityTokenHandler().WriteToken(token),
             Username = user.Username,
             Role = user.Role.ToString(),
-            ExpiresAtUtc = expires
+            ExpiresAtUtc = expires,
+            MustChangePassword = user.MustChangePassword
         };
     }
 }

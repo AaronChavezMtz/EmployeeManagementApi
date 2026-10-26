@@ -172,6 +172,7 @@ La referencia completa e interactiva está en [Swagger](https://employeemanageme
 |---|---|---|---|
 | `POST` | `/api/Auth/login` | Inicia sesión y devuelve un token JWT | Público |
 | `POST` | `/api/Auth/register` | Crea un usuario (`employeeId` obligatorio si el rol es `Employee`) | Admin |
+| `POST` | `/api/Auth/change-password` | Cambia la contraseña propia (no aplica a cuentas protegidas) | Autenticado |
 | `GET` | `/api/Users` | Lista los usuarios del sistema | Admin |
 | `PUT` | `/api/Users/{id}` | Cambia el rol, el estado activo o el empleado vinculado | Admin |
 | `GET` | `/api/me` | Ficha del empleado vinculado al usuario actual | Employee |
@@ -215,6 +216,7 @@ GET /api/Employees?search=garcia&departmentId=3&isActive=true&minSalary=15000&so
 
 - Autenticación **JWT Bearer** con expiración configurable; en cada petición se comprueba que la cuenta siga activa y con el mismo rol (un token de una cuenta desactivada o borrada deja de servir al instante)
 - **Autorización por rol** aplicada en el servidor (el frontend solo oculta acciones; la API las bloquea)
+- **Contraseñas temporales**: una cuenta creada por un admin debe cambiar su contraseña en el primer acceso; hasta entonces la API solo acepta `POST /api/auth/change-password`
 - Contraseñas hasheadas con **BCrypt**; el login tarda lo mismo exista o no el usuario (evita enumerar cuentas)
 - **Rate limiting** por IP real del cliente (lee `X-Forwarded-For` del proxy de Render): 100 peticiones/min en general y 5 intentos/min en `/api/auth/login`
 - **CORS** restringido a `AllowedOrigins`; en producción, si está vacío no se permite ningún origen (solo en Development se permite cualquiera). CORS solo limita a los navegadores: la API sigue siendo accesible desde cualquier cliente, por eso todo lo sensible exige JWT
