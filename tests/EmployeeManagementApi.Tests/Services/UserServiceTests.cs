@@ -31,7 +31,7 @@ public class UserServiceTests
     [InlineData("admin", false, false)]      // sin modo demo nadie reinicia
     public void CanReset_SoloCuentasDeReinicioConDemoHabilitada(string username, bool enabled, bool expected)
     {
-        var demo = new DemoSettings { Enabled = enabled, ProtectedUsers = "adminprueba,admin", ResetUsers = "admin,dueño" };
+        var demo = new DemoSettings { Enabled = enabled, ProtectedUsers = "adminprueba,admin", OwnerUsers = "admin,dueño" };
 
         demo.CanReset(username).Should().Be(expected);
     }
@@ -89,5 +89,38 @@ public class UserServiceTests
         var act = async () => await service.GetLinkedEmployeeIdAsync("suelto");
 
         await act.Should().ThrowAsync<BusinessRuleException>();
+    }
+
+    [Fact]
+    public async Task UpdateAsync_DuenoPuedeEditarUnaCuentaProtegida()
+    {
+        var context = TestDbContextFactory.Create();
+        var publico = new User { Username = "adminprueba", Email = "p@test.com", PasswordHash = "x", Role = UserRole.Admin };
+        context.Users.Add(publico);
+        await context.SaveChangesAsync();
+        var demo = new DemoSettings { ProtectedUsers = "adminprueba,admin", OwnerUsers = "admin" };
+        var service = new UserService(context, Options.Create(demo));
+
+        var result = await service.UpdateAsync(publico.Id, new UpdateUserDto { Role = "Admin", IsActive = false }, "admin");
+
+        result.IsActive.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task GetAllAsync_MarcaCanEditSegunQuienConsulta()
+    {
+        var context = TestDbContextFactory.Create();
+        context.Users.AddRange(
+            new User { Username = "admin", Email = "a@test.com", PasswordHash = "x", Role = UserRole.Admin },
+            new User { Username = "adminprueba", Email = "p@test.com", PasswordHash = "x", Role = UserRole.Admin },
+            new User { Username = "visitante", Email = "v@test.com", PasswordHash = "x", Role = UserRole.Admin });
+        await context.SaveChangesAsync();
+        var service = new UserService(context, Options.Create(new DemoSettings { ProtectedUsers = "adminprueba,admin", OwnerUsers = "admin" }));
+
+        var vistaDueno = (await service.GetAllAsync("admin")).ToDictionary(u => u.Username, u => u.CanEdit);
+        var vistaPublica = (await service.GetAllAsync("adminprueba")).ToDictionary(u => u.Username, u => u.CanEdit);
+
+        vistaDueno.Should().Equal(new Dictionary<string, bool> { ["admin"] = false, ["adminprueba"] = true, ["visitante"] = true });
+        vistaPublica.Should().Equal(new Dictionary<string, bool> { ["admin"] = false, ["adminprueba"] = false, ["visitante"] = true });
     }
 }

@@ -23,7 +23,7 @@ public class UsersController : ControllerBase
     [HttpGet]
     [ProducesResponseType(typeof(IEnumerable<UserDto>), StatusCodes.Status200OK)]
     public async Task<ActionResult<IEnumerable<UserDto>>> GetAll()
-        => Ok(await _service.GetAllAsync());
+        => Ok(await _service.GetAllAsync(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? string.Empty));
 
     /// <summary>Cambia el rol o el estado activo de un usuario.</summary>
     [HttpPut("{id:int}")]

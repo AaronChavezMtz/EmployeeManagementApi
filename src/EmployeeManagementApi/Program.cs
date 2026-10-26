@@ -96,7 +96,7 @@ builder.Services.Configure<DemoSettings>(builder.Configuration.GetSection("Demo"
 builder.Services.PostConfigure<DemoSettings>(options =>
 {
     options.ProtectedUsers = string.Join(',', options.ProtectedUsers, initialAdminUsername, superAdminUsername);
-    options.ResetUsers = string.Join(',', initialAdminUsername, superAdminUsername);
+    options.OwnerUsers = string.Join(',', initialAdminUsername, superAdminUsername);
 });
 
 // ---------- JWT ----------
