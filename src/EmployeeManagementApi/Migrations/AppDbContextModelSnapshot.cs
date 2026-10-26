@@ -214,6 +214,63 @@ namespace EmployeeManagementApi.Migrations
                     b.ToTable("EmployeeHistories", (string)null);
                 });
 
+            modelBuilder.Entity("EmployeeManagementApi.Models.LeaveRequest", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("Days")
+                        .HasColumnType("int");
+
+                    b.Property<int>("EmployeeId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("EndDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<string>("ReviewComment")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<DateTime?>("ReviewedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ReviewedBy")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime>("StartDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Status");
+
+                    b.HasIndex("EmployeeId", "StartDate");
+
+                    b.ToTable("LeaveRequests", (string)null);
+                });
+
             modelBuilder.Entity("EmployeeManagementApi.Models.User", b =>
                 {
                     b.Property<int>("Id")
@@ -277,6 +334,17 @@ namespace EmployeeManagementApi.Migrations
                 });
 
             modelBuilder.Entity("EmployeeManagementApi.Models.EmployeeHistory", b =>
+                {
+                    b.HasOne("EmployeeManagementApi.Models.Employee", "Employee")
+                        .WithMany()
+                        .HasForeignKey("EmployeeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Employee");
+                });
+
+            modelBuilder.Entity("EmployeeManagementApi.Models.LeaveRequest", b =>
                 {
                     b.HasOne("EmployeeManagementApi.Models.Employee", "Employee")
                         .WithMany()

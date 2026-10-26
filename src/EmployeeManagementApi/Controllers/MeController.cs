@@ -17,11 +17,13 @@ public class MeController : ControllerBase
 {
     private readonly IUserService _users;
     private readonly IEmployeeService _employees;
+    private readonly ILeaveService _leave;
 
-    public MeController(IUserService users, IEmployeeService employees)
+    public MeController(IUserService users, IEmployeeService employees, ILeaveService leave)
     {
         _users = users;
         _employees = employees;
+        _leave = leave;
     }
 
     private Task<int> MyEmployeeIdAsync() =>
@@ -41,6 +43,26 @@ public class MeController : ControllerBase
     [HttpPut("phone")]
     public async Task<ActionResult<EmployeeDto>> UpdatePhone([FromBody] UpdatePhoneDto dto)
         => Ok(await _employees.UpdatePhoneAsync(await MyEmployeeIdAsync(), dto.Phone));
+
+    /// <summary>Saldo de vacaciones del periodo de aniversario actual (LFT).</summary>
+    [HttpGet("vacation-balance")]
+    public async Task<ActionResult<VacationBalanceDto>> GetVacationBalance()
+        => Ok(await _leave.GetBalanceAsync(await MyEmployeeIdAsync()));
+
+    /// <summary>Solicitudes de ausencia del empleado actual.</summary>
+    [HttpGet("leave-requests")]
+    public async Task<ActionResult<IEnumerable<LeaveRequestDto>>> GetLeaveRequests()
+        => Ok(await _leave.GetForEmployeeAsync(await MyEmployeeIdAsync()));
+
+    /// <summary>Crea una solicitud de vacaciones, incapacidad o permiso.</summary>
+    [HttpPost("leave-requests")]
+    public async Task<ActionResult<LeaveRequestDto>> CreateLeaveRequest([FromBody] CreateLeaveRequestDto dto)
+        => Ok(await _leave.CreateAsync(await MyEmployeeIdAsync(), dto));
+
+    /// <summary>Cancela una solicitud propia pendiente, o aprobada que aún no empieza.</summary>
+    [HttpPost("leave-requests/{id:int}/cancel")]
+    public async Task<ActionResult<LeaveRequestDto>> CancelLeaveRequest(int id)
+        => Ok(await _leave.CancelAsync(await MyEmployeeIdAsync(), id));
 }
 
 public class UpdatePhoneDto

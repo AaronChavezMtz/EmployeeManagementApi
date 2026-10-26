@@ -11,6 +11,7 @@ public class AppDbContext : DbContext
     public DbSet<Department> Departments => Set<Department>();
     public DbSet<User> Users => Set<User>();
     public DbSet<EmployeeHistory> EmployeeHistories => Set<EmployeeHistory>();
+    public DbSet<LeaveRequest> LeaveRequests => Set<LeaveRequest>();
 
     // Entidad sin clave, mapeada a la vista vw_DepartmentSummary (ver Database/schema.sql).
     public DbSet<DepartmentSummaryView> DepartmentSummaries => Set<DepartmentSummaryView>();
@@ -78,6 +79,27 @@ public class AppDbContext : DbContext
                   .OnDelete(DeleteBehavior.Cascade);
 
             entity.HasIndex(h => h.EmployeeId);
+        });
+
+        modelBuilder.Entity<LeaveRequest>(entity =>
+        {
+            entity.ToTable("LeaveRequests");
+            entity.HasKey(r => r.Id);
+            entity.Property(r => r.Type).HasConversion<string>().HasMaxLength(20);
+            entity.Property(r => r.Status).HasConversion<string>().HasMaxLength(20);
+            entity.Property(r => r.StartDate).HasColumnType("date");
+            entity.Property(r => r.EndDate).HasColumnType("date");
+            entity.Property(r => r.Reason).HasMaxLength(300);
+            entity.Property(r => r.ReviewedBy).HasMaxLength(50);
+            entity.Property(r => r.ReviewComment).HasMaxLength(300);
+
+            entity.HasOne(r => r.Employee)
+                  .WithMany()
+                  .HasForeignKey(r => r.EmployeeId)
+                  .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasIndex(r => new { r.EmployeeId, r.StartDate });
+            entity.HasIndex(r => r.Status);
         });
 
         // Mapeo de la vista SQL (sin clave primaria, solo lectura).

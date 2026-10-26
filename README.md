@@ -55,6 +55,7 @@ Arquitectura en capas: los **controllers** solo manejan HTTP, los **services** c
 - **Búsqueda y filtros**: por nombre/correo/puesto, departamento, estado, rango de salario, rango de fechas de contratación, con orden y paginación
 - **Autenticación JWT** con dos roles: `Admin` (RH, acceso completo) y `Employee` (portal del empleado)
 - **Portal del empleado**: cada usuario `Employee` está vinculado a su ficha y solo ve su propia información; puede actualizar su teléfono
+- **Vacaciones y ausencias**: el empleado solicita vacaciones, incapacidad o permiso; RH aprueba o rechaza. El saldo de vacaciones sigue la LFT (reforma 2023: 12 días el primer año, +2 por año hasta 20, luego +2 cada 5 años) por periodo de aniversario, y cuenta solo días hábiles
 - **Historial de cambios**: cada alta, cambio de departamento, de salario, baja o recontratación queda registrado con quién lo hizo y cuándo
 - **Bajas y recontratación**: la baja guarda fecha y motivo (renuncia, despido, término de contrato, otro); un empleado dado de baja se puede recontratar
 - **Gestión de usuarios** desde la propia API (crear, cambiar rol, activar/desactivar)
@@ -89,6 +90,7 @@ erDiagram
     DEPARTMENT ||--o{ EMPLOYEE : tiene
     EMPLOYEE ||--o{ EMPLOYEE_HISTORY : registra
     EMPLOYEE ||--o| USER : "accede como"
+    EMPLOYEE ||--o{ LEAVE_REQUEST : solicita
 
     DEPARTMENT {
         int Id PK
@@ -121,6 +123,17 @@ erDiagram
         string NewValue
         string ChangedBy
         datetime ChangedAtUtc
+    }
+    LEAVE_REQUEST {
+        int Id PK
+        int EmployeeId FK
+        enum Type
+        date StartDate
+        date EndDate
+        int Days
+        enum Status
+        string ReviewedBy
+        string ReviewComment
     }
     USER {
         int Id PK
@@ -164,6 +177,13 @@ La referencia completa e interactiva está en [Swagger](https://employeemanageme
 | `GET` | `/api/me` | Ficha del empleado vinculado al usuario actual | Employee |
 | `GET` | `/api/me/history` | Historial del empleado actual | Employee |
 | `PUT` | `/api/me/phone` | Actualiza el teléfono del empleado actual | Employee |
+| `GET` | `/api/me/vacation-balance` | Saldo de vacaciones del periodo de aniversario actual | Employee |
+| `GET` | `/api/me/leave-requests` | Solicitudes de ausencia propias | Employee |
+| `POST` | `/api/me/leave-requests` | Solicita vacaciones, incapacidad o permiso | Employee |
+| `POST` | `/api/me/leave-requests/{id}/cancel` | Cancela una solicitud pendiente, o aprobada que aún no empieza | Employee |
+| `GET` | `/api/leave-requests?status=Pending` | Bandeja de solicitudes (pendientes primero) | Admin |
+| `POST` | `/api/leave-requests/{id}/approve` | Aprueba (revalida el saldo de vacaciones) | Admin |
+| `POST` | `/api/leave-requests/{id}/reject` | Rechaza con comentario obligatorio | Admin |
 | `GET` | `/api/Employees` | Lista con búsqueda, filtros, orden y paginación | Admin |
 | `GET` | `/api/Employees/{id}` | Detalle de un empleado | Admin |
 | `GET` | `/api/Employees/{id}/history` | Bitácora de cambios (altas, departamento, salario, estado) | Admin |
