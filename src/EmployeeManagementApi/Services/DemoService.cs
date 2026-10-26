@@ -23,6 +23,7 @@ public class DemoService : IDemoService
 
     public async Task ResetAsync()
     {
+        _context.LeaveRequests.RemoveRange(await _context.LeaveRequests.ToListAsync());
         _context.EmployeeHistories.RemoveRange(await _context.EmployeeHistories.ToListAsync());
         _context.Employees.RemoveRange(await _context.Employees.ToListAsync());
         _context.Departments.RemoveRange(await _context.Departments.ToListAsync());
@@ -96,6 +97,21 @@ public class DemoService : IDemoService
             ChangedBy = "sistema",
             ChangedAtUtc = e.HireDate
         }));
+        // Algunas solicitudes para que la bandeja de RH y el portal no estén vacíos.
+        DateTime NextMonday(int weeksAhead) => today.AddDays(((int)DayOfWeek.Monday - (int)today.DayOfWeek + 7) % 7 + 7 * weeksAhead);
+        LeaveRequest Leave(Employee e, LeaveType type, DateTime start, int businessDays, LeaveStatus status, string? reason) => new()
+        {
+            EmployeeId = e.Id, Type = type, StartDate = start, EndDate = start.AddDays(businessDays - 1),
+            Days = businessDays, Status = status, Reason = reason, CreatedAtUtc = DateTime.UtcNow,
+            ReviewedBy = status == LeaveStatus.Pending ? null : "sistema",
+            ReviewedAtUtc = status == LeaveStatus.Pending ? null : DateTime.UtcNow
+        };
+        _context.LeaveRequests.AddRange(
+            Leave(employees[0], LeaveType.Vacation, NextMonday(3), 5, LeaveStatus.Pending, "Viaje familiar"),
+            Leave(employees[7], LeaveType.Vacation, NextMonday(2), 3, LeaveStatus.Approved, null),
+            Leave(employees[9], LeaveType.Personal, NextMonday(1), 1, LeaveStatus.Pending, "Trámite personal"),
+            Leave(employees[2], LeaveType.Sick, NextMonday(0).AddDays(-7), 2, LeaveStatus.Approved, "Incapacidad IMSS"));
+
         _context.EmployeeHistories.AddRange(employees.Where(e => e.TerminationDate is not null).Select(e => new EmployeeHistory
         {
             EmployeeId = e.Id,

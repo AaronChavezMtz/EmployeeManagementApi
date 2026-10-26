@@ -86,6 +86,7 @@ builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
 builder.Services.AddScoped<IReportService, ReportService>();
 builder.Services.AddScoped<IDemoService, DemoService>();
+builder.Services.AddScoped<ILeaveService, LeaveService>();
 
 // ---------- Demo ----------
 // El admin inicial y el superusuario siempre quedan protegidos, además de Demo:ProtectedUsers.
