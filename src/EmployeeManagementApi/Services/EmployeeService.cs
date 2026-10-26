@@ -185,16 +185,6 @@ public class EmployeeService : IEmployeeService
             });
         }
 
-        if (employee.IsActive != dto.IsActive)
-        {
-            historyEntries.Add(new EmployeeHistory
-            {
-                EmployeeId = id,
-                ChangeType = dto.IsActive ? HistoryChangeType.Activated : HistoryChangeType.Deactivated,
-                ChangedBy = CurrentUsername, ChangedAtUtc = now
-            });
-        }
-
         employee.FirstName = dto.FirstName.Trim();
         employee.LastName = dto.LastName.Trim();
         employee.Email = dto.Email.Trim().ToLower();
@@ -203,7 +193,6 @@ public class EmployeeService : IEmployeeService
         employee.Salary = dto.Salary;
         employee.BirthDate = dto.BirthDate;
         employee.DepartmentId = dto.DepartmentId;
-        employee.IsActive = dto.IsActive;
         employee.UpdatedAt = now;
 
         if (historyEntries.Count == 0)
@@ -224,28 +213,84 @@ public class EmployeeService : IEmployeeService
         return MapToDto(employee);
     }
 
-    public async Task DeleteAsync(int id)
+    public async Task<EmployeeDto> TerminateAsync(int id, TerminateEmployeeDto dto)
     {
-        var employee = await _context.Employees.FindAsync(id);
-        if (employee is null)
-            throw new NotFoundException($"No se encontró el empleado con id {id}");
+        var employee = await FindWithDepartmentAsync(id);
+        if (!employee.IsActive)
+            throw new BusinessRuleException("El empleado ya está dado de baja");
 
-        // Baja lógica: conserva historial en lugar de borrar el registro físicamente.
+        var date = dto.TerminationDate.Date;
+        if (date > DateTime.UtcNow.Date)
+            throw new BusinessRuleException("La fecha de baja no puede ser futura");
+        if (date < employee.HireDate.Date)
+            throw new BusinessRuleException("La fecha de baja no puede ser anterior a la de contratación");
+
+        // Baja lógica: conserva el registro y su historial.
         employee.IsActive = false;
+        employee.TerminationDate = date;
+        employee.TerminationReason = dto.Reason!.Value;
         employee.UpdatedAt = DateTime.UtcNow;
 
         _context.EmployeeHistories.Add(new EmployeeHistory
         {
             EmployeeId = id,
             ChangeType = HistoryChangeType.Deactivated,
+            NewValue = $"{ReasonLabel(employee.TerminationReason.Value)} el {date:yyyy-MM-dd}",
             ChangedBy = CurrentUsername,
             ChangedAtUtc = DateTime.UtcNow
         });
-
         await _context.SaveChangesAsync();
 
-        _logger.LogInformation("Empleado dado de baja: Id {Id} por {User}", id, CurrentUsername);
+        _logger.LogInformation("Empleado dado de baja: Id {Id} ({Reason}) por {User}", id, employee.TerminationReason, CurrentUsername);
+        return MapToDto(employee);
     }
+
+    public async Task<EmployeeDto> RehireAsync(int id, RehireEmployeeDto dto)
+    {
+        var employee = await FindWithDepartmentAsync(id);
+        if (employee.IsActive)
+            throw new BusinessRuleException("El empleado ya está activo");
+
+        var date = dto.HireDate.Date;
+        if (date > DateTime.UtcNow.Date)
+            throw new BusinessRuleException("La fecha de recontratación no puede ser futura");
+        if (employee.TerminationDate is { } terminated && date < terminated.Date)
+            throw new BusinessRuleException("La fecha de recontratación no puede ser anterior a la baja");
+
+        // La antigüedad se reinicia: la baja anterior queda registrada en el historial.
+        var previous = employee.TerminationDate;
+        employee.IsActive = true;
+        employee.HireDate = date;
+        employee.TerminationDate = null;
+        employee.TerminationReason = null;
+        employee.UpdatedAt = DateTime.UtcNow;
+
+        _context.EmployeeHistories.Add(new EmployeeHistory
+        {
+            EmployeeId = id,
+            ChangeType = HistoryChangeType.Activated,
+            OldValue = previous is null ? null : $"Baja el {previous:yyyy-MM-dd}",
+            NewValue = $"Recontratado el {date:yyyy-MM-dd}",
+            ChangedBy = CurrentUsername,
+            ChangedAtUtc = DateTime.UtcNow
+        });
+        await _context.SaveChangesAsync();
+
+        _logger.LogInformation("Empleado recontratado: Id {Id} por {User}", id, CurrentUsername);
+        return MapToDto(employee);
+    }
+
+    private async Task<Employee> FindWithDepartmentAsync(int id) =>
+        await _context.Employees.Include(e => e.Department).FirstOrDefaultAsync(e => e.Id == id)
+        ?? throw new NotFoundException($"No se encontró el empleado con id {id}");
+
+    private static string ReasonLabel(TerminationReason reason) => reason switch
+    {
+        TerminationReason.Resignation => "Renuncia",
+        TerminationReason.Dismissal => "Despido",
+        TerminationReason.ContractEnd => "Término de contrato",
+        _ => "Baja"
+    };
 
     public async Task<IEnumerable<EmployeeHistoryDto>> GetHistoryAsync(int employeeId)
     {
@@ -280,6 +325,8 @@ public class EmployeeService : IEmployeeService
         HireDate = e.HireDate,
         BirthDate = e.BirthDate,
         IsActive = e.IsActive,
+        TerminationDate = e.TerminationDate,
+        TerminationReason = e.TerminationReason?.ToString(),
         DepartmentId = e.DepartmentId,
         DepartmentName = e.Department?.Name
     };

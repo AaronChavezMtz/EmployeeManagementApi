@@ -46,12 +46,15 @@ public class EmployeesControllerTests
     }
 
     [Fact]
-    public async Task Delete_DelegaEnElServicioYDevuelveNoContent()
+    public async Task Terminate_DelegaEnElServicioYDevuelveOk()
     {
-        var result = await _controller.Delete(7);
+        var dto = new TerminateEmployeeDto { TerminationDate = DateTime.UtcNow, Reason = EmployeeManagementApi.Models.TerminationReason.Resignation };
+        _serviceMock.Setup(s => s.TerminateAsync(7, dto)).ReturnsAsync(new EmployeeDto { Id = 7, IsActive = false });
 
-        result.Should().BeOfType<NoContentResult>();
-        _serviceMock.Verify(s => s.DeleteAsync(7), Times.Once);
+        var result = await _controller.Terminate(7, dto);
+
+        result.Result.Should().BeOfType<OkObjectResult>();
+        _serviceMock.Verify(s => s.TerminateAsync(7, dto), Times.Once);
     }
 
     [Fact]

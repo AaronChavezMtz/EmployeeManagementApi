@@ -27,6 +27,6 @@ public class DemoServiceTests
         context.Users.Select(u => u.Username).Should().BeEquivalentTo(new[] { "admin" });
         context.Departments.Should().HaveCount(4).And.NotContain(d => d.Name == "Departamento basura");
         context.Employees.Should().HaveCount(12);
-        context.EmployeeHistories.Should().HaveCount(12);
+        context.EmployeeHistories.Should().HaveCount(14); // 12 altas + 2 bajas
     }
 }

@@ -43,7 +43,8 @@ public class DemoService : IDemoService
         _context.Departments.AddRange(departments);
 
         var today = DateTime.UtcNow.Date;
-        Employee Emp(string first, string last, string position, decimal salary, int monthsAgo, int birthYear, Department dept, bool active = true) => new()
+        Employee Emp(string first, string last, string position, decimal salary, int monthsAgo, int birthYear, Department dept,
+            int? terminatedMonthsAgo = null, TerminationReason? reason = null) => new()
         {
             FirstName = first,
             LastName = last,
@@ -52,7 +53,9 @@ public class DemoService : IDemoService
             Salary = salary,
             HireDate = today.AddMonths(-monthsAgo),
             BirthDate = new DateTime(birthYear, 6, 15),
-            IsActive = active,
+            IsActive = terminatedMonthsAgo is null,
+            TerminationDate = terminatedMonthsAgo is { } t ? today.AddMonths(-t) : null,
+            TerminationReason = reason,
             Department = dept
         };
 
@@ -63,13 +66,13 @@ public class DemoService : IDemoService
             Emp("Sofia", "Ramirez", "Ingeniera DevOps", 42000, 7, 1990, departments[0]),
             Emp("Diego", "Torres", "QA Tester", 26000, 3, 1998, departments[0]),
             Emp("Mariana", "Lopez", "Reclutadora", 22000, 20, 1993, departments[1]),
-            Emp("Jorge", "Martinez", "Analista de Nómina", 24000, 9, 1988, departments[1], active: false),
+            Emp("Jorge", "Martinez", "Analista de Nómina", 24000, 9, 1988, departments[1], terminatedMonthsAgo: 2, reason: TerminationReason.Resignation),
             Emp("Valeria", "Sanchez", "Ejecutiva de Ventas", 20000, 5, 1997, departments[2]),
             Emp("Carlos", "Flores", "Gerente de Ventas", 45000, 40, 1985, departments[2]),
             Emp("Fernanda", "Cruz", "Ejecutiva de Cuenta", 21000, 1, 1999, departments[2]),
             Emp("Ricardo", "Morales", "Contador", 30000, 15, 1987, departments[3]),
             Emp("Paola", "Jimenez", "Analista Financiera", 28000, 6, 1994, departments[3]),
-            Emp("Miguel", "Reyes", "Auxiliar Contable", 18000, 2, 2000, departments[3], active: false)
+            Emp("Miguel", "Reyes", "Auxiliar Contable", 18000, 8, 2000, departments[3], terminatedMonthsAgo: 1, reason: TerminationReason.Dismissal)
         };
         _context.Employees.AddRange(employees);
         await _context.SaveChangesAsync();
@@ -81,6 +84,14 @@ public class DemoService : IDemoService
             NewValue = $"{e.FirstName} {e.LastName} contratado como {e.Position}",
             ChangedBy = "sistema",
             ChangedAtUtc = e.HireDate
+        }));
+        _context.EmployeeHistories.AddRange(employees.Where(e => e.TerminationDate is not null).Select(e => new EmployeeHistory
+        {
+            EmployeeId = e.Id,
+            ChangeType = HistoryChangeType.Deactivated,
+            NewValue = $"Baja el {e.TerminationDate:yyyy-MM-dd}",
+            ChangedBy = "sistema",
+            ChangedAtUtc = e.TerminationDate!.Value
         }));
         await _context.SaveChangesAsync();
 

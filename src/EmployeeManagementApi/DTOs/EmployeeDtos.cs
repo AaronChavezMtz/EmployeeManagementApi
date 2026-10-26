@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using EmployeeManagementApi.Models;
 using EmployeeManagementApi.Common;
 
 namespace EmployeeManagementApi.DTOs;
@@ -16,6 +17,8 @@ public class EmployeeDto
     public DateTime HireDate { get; set; }
     public DateTime BirthDate { get; set; }
     public bool IsActive { get; set; }
+    public DateTime? TerminationDate { get; set; }
+    public string? TerminationReason { get; set; }
     public int DepartmentId { get; set; }
     public string? DepartmentName { get; set; }
 }
@@ -91,8 +94,23 @@ public class UpdateEmployeeDto
     [Required]
     [Range(1, int.MaxValue)]
     public int DepartmentId { get; set; }
+}
 
-    public bool IsActive { get; set; } = true;
+// POST /api/employees/{id}/terminate
+public class TerminateEmployeeDto
+{
+    [Required(ErrorMessage = "La fecha de baja es obligatoria")]
+    public DateTime TerminationDate { get; set; }
+
+    [Required(ErrorMessage = "El motivo de baja es obligatorio")]
+    public TerminationReason? Reason { get; set; }
+}
+
+// POST /api/employees/{id}/rehire
+public class RehireEmployeeDto
+{
+    [Required(ErrorMessage = "La fecha de recontratación es obligatoria")]
+    public DateTime HireDate { get; set; }
 }
 
 // Parámetros de búsqueda y filtrado para GET /api/employees

@@ -1,5 +1,6 @@
 using EmployeeManagementApi.Common;
 using EmployeeManagementApi.DTOs;
+using EmployeeManagementApi.Models;
 using EmployeeManagementApi.Services;
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -98,16 +99,51 @@ public class EmployeeServiceTests
     }
 
     [Fact]
-    public async Task DeleteAsync_HaceBajaLogica_NoBorraElRegistro()
+    public async Task TerminateAsync_HaceBajaLogicaConFechaYMotivo()
     {
         var service = CreateService(out var context);
         var created = await service.CreateAsync(ValidEmployee());
 
-        await service.DeleteAsync(created.Id);
+        var result = await service.TerminateAsync(created.Id, new TerminateEmployeeDto
+        {
+            TerminationDate = DateTime.UtcNow, Reason = TerminationReason.Resignation
+        });
 
+        result.IsActive.Should().BeFalse();
+        result.TerminationReason.Should().Be("Resignation");
         var employeeInDb = await context.Employees.FindAsync(created.Id);
-        employeeInDb.Should().NotBeNull();
-        employeeInDb!.IsActive.Should().BeFalse();
+        employeeInDb.Should().NotBeNull(); // no se borra el registro
+        context.EmployeeHistories.Should().Contain(h => h.EmployeeId == created.Id && h.ChangeType == HistoryChangeType.Deactivated);
+    }
+
+    [Fact]
+    public async Task TerminateAsync_ConEmpleadoYaDadoDeBaja_LanzaBusinessRuleException()
+    {
+        var service = CreateService(out _);
+        var created = await service.CreateAsync(ValidEmployee());
+        var dto = new TerminateEmployeeDto { TerminationDate = DateTime.UtcNow, Reason = TerminationReason.Dismissal };
+        await service.TerminateAsync(created.Id, dto);
+
+        var act = async () => await service.TerminateAsync(created.Id, dto);
+
+        await act.Should().ThrowAsync<BusinessRuleException>();
+    }
+
+    [Fact]
+    public async Task RehireAsync_ReactivaYLimpiaLaBaja()
+    {
+        var service = CreateService(out _);
+        var created = await service.CreateAsync(ValidEmployee());
+        await service.TerminateAsync(created.Id, new TerminateEmployeeDto
+        {
+            TerminationDate = DateTime.UtcNow.AddDays(-5), Reason = TerminationReason.ContractEnd
+        });
+
+        var result = await service.RehireAsync(created.Id, new RehireEmployeeDto { HireDate = DateTime.UtcNow });
+
+        result.IsActive.Should().BeTrue();
+        result.TerminationDate.Should().BeNull();
+        result.HireDate.Date.Should().Be(DateTime.UtcNow.Date);
     }
 
     [Fact]
@@ -116,7 +152,7 @@ public class EmployeeServiceTests
         var service = CreateService(out _);
         var e1 = await service.CreateAsync(ValidEmployee(email: "a@test.com", departmentId: 1));
         await service.CreateAsync(ValidEmployee(email: "b@test.com", departmentId: 2));
-        await service.DeleteAsync(e1.Id); // queda inactivo
+        await service.TerminateAsync(e1.Id, new TerminateEmployeeDto { TerminationDate = DateTime.UtcNow, Reason = TerminationReason.Other });
 
         var result = await service.GetAllAsync(new EmployeeQueryParameters
         {
@@ -156,8 +192,7 @@ public class EmployeeServiceTests
             Position = "QA",
             Salary = 20000,
             BirthDate = DateTime.UtcNow.AddYears(-30),
-            DepartmentId = 1,
-            IsActive = true
+            DepartmentId = 1
         };
 
         var act = async () => await service.UpdateAsync(dos.Id, update);
@@ -186,7 +221,7 @@ public class EmployeeServiceTests
         {
             FirstName = created.FirstName, LastName = created.LastName, Email = created.Email,
             Position = created.Position, Salary = created.Salary, BirthDate = created.BirthDate,
-            DepartmentId = 2, IsActive = true
+            DepartmentId = 2
         };
         await service.UpdateAsync(created.Id, update);
 

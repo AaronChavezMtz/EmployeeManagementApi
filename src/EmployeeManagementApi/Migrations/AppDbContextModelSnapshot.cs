@@ -155,6 +155,13 @@ namespace EmployeeManagementApi.Migrations
                     b.Property<decimal>("Salary")
                         .HasColumnType("decimal(12,2)");
 
+                    b.Property<DateTime?>("TerminationDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("TerminationReason")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
 

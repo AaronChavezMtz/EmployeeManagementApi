@@ -36,6 +36,7 @@ public class AppDbContext : DbContext
             entity.HasIndex(e => e.Email).IsUnique();
             entity.Property(e => e.Position).IsRequired().HasMaxLength(100);
             entity.Property(e => e.Salary).HasColumnType("decimal(12,2)");
+            entity.Property(e => e.TerminationReason).HasConversion<string>().HasMaxLength(20);
 
             entity.HasOne(e => e.Department)
                   .WithMany(d => d.Employees)
