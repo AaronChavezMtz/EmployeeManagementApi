@@ -68,7 +68,7 @@ public class DepartmentServiceTests
             Salary = 16000, HireDate = DateTime.UtcNow, BirthDate = DateTime.UtcNow.AddYears(-20), DepartmentId = 1
         };
         var created = await empService.CreateAsync(dto);
-        await empService.DeleteAsync(created.Id); // inactivo
+        await empService.TerminateAsync(created.Id, new TerminateEmployeeDto { TerminationDate = DateTime.UtcNow, Reason = EmployeeManagementApi.Models.TerminationReason.Other });
 
         var departments = await deptService.GetAllAsync();
 

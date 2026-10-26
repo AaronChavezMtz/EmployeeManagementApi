@@ -17,40 +17,54 @@ public class DashboardService : IDashboardService
 
     public async Task<DashboardKpisDto> GetKpisAsync()
     {
-        var total = await _context.Employees.CountAsync();
-        var active = await _context.Employees.CountAsync(e => e.IsActive);
-        var inactive = total - active;
-
-        var turnoverRate = total == 0 ? 0 : Math.Round((double)inactive / total * 100, 1);
-
-        var twelveMonthsAgo = DateTime.UtcNow.AddMonths(-11);
-        var startOfWindow = new DateTime(twelveMonthsAgo.Year, twelveMonthsAgo.Month, 1);
-
-        var hiresRaw = await _context.Employees
-            .Where(e => e.HireDate >= startOfWindow)
-            .GroupBy(e => new { e.HireDate.Year, e.HireDate.Month })
-            .Select(g => new { g.Key.Year, g.Key.Month, Count = g.Count() })
+        // La plantilla de una pyme cabe en memoria; así los cálculos por fecha quedan legibles.
+        var employees = await _context.Employees.AsNoTracking()
+            .Select(e => new { e.HireDate, e.TerminationDate, e.TerminationReason, e.IsActive })
             .ToListAsync();
 
-        // Se completan los 12 meses aunque algunos no tengan contrataciones, para que la gráfica no tenga huecos.
+        var today = DateTime.UtcNow.Date;
+        var startOfWindow = new DateTime(today.Year, today.Month, 1).AddMonths(-11);
+
+        // Plantilla en una fecha: contratados hasta ese día y sin baja (o con baja posterior).
+        int HeadcountAt(DateTime date) =>
+            employees.Count(e => e.HireDate.Date <= date && (e.TerminationDate is null || e.TerminationDate.Value.Date > date));
+
+        var terminations = employees
+            .Where(e => e.TerminationDate is { } d && d.Date >= startOfWindow && d.Date <= today)
+            .ToList();
+
+        var averageHeadcount = (HeadcountAt(startOfWindow) + HeadcountAt(today)) / 2.0;
+        var turnoverRate = averageHeadcount == 0 ? 0 : Math.Round(terminations.Count / averageHeadcount * 100, 1);
+
+        var active = employees.Where(e => e.IsActive).ToList();
+        var averageTenure = active.Count == 0 ? 0 : Math.Round(active.Average(e => (today - e.HireDate.Date).TotalDays) / 365.25, 1);
+
+        // Se completan los 12 meses aunque algunos no tengan movimientos, para que la gráfica no tenga huecos.
         var trend = new List<MonthlyHiresDto>();
         for (var i = 0; i < 12; i++)
         {
             var month = startOfWindow.AddMonths(i);
-            var match = hiresRaw.FirstOrDefault(h => h.Year == month.Year && h.Month == month.Month);
             trend.Add(new MonthlyHiresDto
             {
                 Month = month.ToString("yyyy-MM"),
                 MonthLabel = month.ToString("MMM yyyy", SpanishCulture),
-                Hires = match?.Count ?? 0
+                Hires = employees.Count(e => e.HireDate.Year == month.Year && e.HireDate.Month == month.Month),
+                Terminations = terminations.Count(e => e.TerminationDate!.Value.Year == month.Year && e.TerminationDate.Value.Month == month.Month)
             });
         }
 
         return new DashboardKpisDto
         {
-            TotalHeadcount = total,
-            ActiveHeadcount = active,
+            TotalHeadcount = employees.Count,
+            ActiveHeadcount = active.Count,
             TurnoverRatePercent = turnoverRate,
+            TerminationsLast12Months = terminations.Count,
+            AverageTenureYears = averageTenure,
+            TerminationsByReason = terminations
+                .GroupBy(e => e.TerminationReason?.ToString() ?? "Other")
+                .Select(g => new TerminationsByReasonDto { Reason = g.Key, Count = g.Count() })
+                .OrderByDescending(r => r.Count)
+                .ToList(),
             HiringTrend = trend
         };
     }

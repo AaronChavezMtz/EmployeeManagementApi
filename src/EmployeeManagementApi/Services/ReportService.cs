@@ -30,7 +30,7 @@ public class ReportService : IReportService
         using var workbook = new XLWorkbook();
         var sheet = workbook.Worksheets.Add("Empleados");
 
-        string[] headers = { "Nombre", "Apellido", "Correo", "Teléfono", "Puesto", "Departamento", "Salario", "Fecha de contratación", "Estado" };
+        string[] headers = { "Nombre", "Apellido", "Correo", "Teléfono", "Puesto", "Departamento", "Salario", "Fecha de contratación", "Estado", "Fecha de baja" };
         for (var col = 0; col < headers.Length; col++)
         {
             sheet.Cell(1, col + 1).Value = headers[col];
@@ -51,6 +51,7 @@ public class ReportService : IReportService
             sheet.Cell(row, 7).Style.NumberFormat.Format = "$#,##0.00";
             sheet.Cell(row, 8).Value = e.HireDate.ToString("yyyy-MM-dd");
             sheet.Cell(row, 9).Value = e.IsActive ? "Activo" : "Inactivo";
+            sheet.Cell(row, 10).Value = e.TerminationDate?.ToString("yyyy-MM-dd") ?? string.Empty;
             row++;
         }
 

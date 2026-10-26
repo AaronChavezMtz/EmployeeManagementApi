@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using System.Text;
+using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
 using EmployeeManagementApi.Common;
 using EmployeeManagementApi.Data;
@@ -45,6 +46,8 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
 
 // ---------- Servicios ----------
 builder.Services.AddControllers()
+    // Enums como texto ("SalaryChanged", "Resignation"), que es lo que espera el frontend.
+    .AddJsonOptions(options => options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()))
     .ConfigureApiBehaviorOptions(options =>
     {
         options.InvalidModelStateResponseFactory = context =>

@@ -9,7 +9,8 @@ public interface IEmployeeService
     Task<EmployeeDto> GetByIdAsync(int id);
     Task<EmployeeDto> CreateAsync(CreateEmployeeDto dto);
     Task<EmployeeDto> UpdateAsync(int id, UpdateEmployeeDto dto);
-    Task DeleteAsync(int id);
+    Task<EmployeeDto> TerminateAsync(int id, TerminateEmployeeDto dto);
+    Task<EmployeeDto> RehireAsync(int id, RehireEmployeeDto dto);
 
     // Bitácora de cambios de un empleado específico
     Task<IEnumerable<EmployeeHistoryDto>> GetHistoryAsync(int employeeId);

@@ -54,9 +54,10 @@ Arquitectura en capas: los **controllers** solo manejan HTTP, los **services** c
 - **CRUD completo** de empleados y departamentos, con DTOs separados de las entidades
 - **Búsqueda y filtros**: por nombre/correo/puesto, departamento, estado, rango de salario, rango de fechas de contratación, con orden y paginación
 - **Autenticación JWT** con dos roles: `Admin` (acceso completo) y `Viewer` (solo lectura)
-- **Historial de cambios**: cada alta, cambio de departamento, de salario o de estado queda registrado con quién lo hizo y cuándo
+- **Historial de cambios**: cada alta, cambio de departamento, de salario, baja o recontratación queda registrado con quién lo hizo y cuándo
+- **Bajas y recontratación**: la baja guarda fecha y motivo (renuncia, despido, término de contrato, otro); un empleado dado de baja se puede recontratar
 - **Gestión de usuarios** desde la propia API (crear, cambiar rol, activar/desactivar)
-- **Dashboard de KPIs**: plantilla activa, tasa de rotación, tendencia de contrataciones de los últimos 12 meses
+- **Dashboard de KPIs**: plantilla activa, rotación de los últimos 12 meses (bajas / plantilla promedio), antigüedad promedio, bajas por motivo y tendencia mensual de altas y bajas
 - **Reportes exportables** a Excel (ClosedXML) y PDF (QuestPDF)
 - **Vista SQL** (`vw_DepartmentSummary`) consumida desde EF Core como entidad sin clave
 - **Logging estructurado** con Serilog y **rate limiting** (protección extra en `/api/auth/login`)
@@ -106,6 +107,8 @@ erDiagram
         bool IsActive
         datetime CreatedAt
         datetime UpdatedAt
+        date TerminationDate
+        enum TerminationReason
         int DepartmentId FK
     }
     EMPLOYEE_HISTORY {
@@ -160,14 +163,15 @@ La referencia completa e interactiva está en [Swagger](https://employeemanageme
 | `GET` | `/api/Employees/{id}/history` | Bitácora de cambios (altas, departamento, salario, estado) | Admin, Viewer |
 | `POST` | `/api/Employees` | Crea un empleado | Admin |
 | `PUT` | `/api/Employees/{id}` | Actualiza un empleado | Admin |
-| `DELETE` | `/api/Employees/{id}` | Da de baja (*soft delete*) a un empleado | Admin |
+| `POST` | `/api/Employees/{id}/terminate` | Da de baja (baja lógica) con fecha y motivo | Admin |
+| `POST` | `/api/Employees/{id}/rehire` | Recontrata a un empleado dado de baja | Admin |
 | `GET` | `/api/Departments` | Lista departamentos con conteo de empleados activos | Admin, Viewer |
 | `GET` | `/api/Departments/{id}` | Detalle de un departamento | Admin, Viewer |
 | `GET` | `/api/Departments/summary` | Resumen por departamento (vista `vw_DepartmentSummary`) | Admin, Viewer |
 | `POST` | `/api/Departments` | Crea un departamento | Admin |
 | `PUT` | `/api/Departments/{id}` | Actualiza un departamento | Admin |
 | `DELETE` | `/api/Departments/{id}` | Elimina un departamento (solo si no tiene empleados asignados) | Admin |
-| `GET` | `/api/Dashboard/kpis` | Plantilla total/activa, rotación y tendencia de 12 meses | Admin, Viewer |
+| `GET` | `/api/Dashboard/kpis` | Plantilla, rotación de 12 meses, antigüedad, bajas por motivo y tendencia mensual | Admin, Viewer |
 | `GET` | `/api/Reports/employees/excel` | Exporta empleados a Excel (acepta los mismos filtros de búsqueda) | Admin, Viewer |
 | `GET` | `/api/Reports/departments/excel` | Exporta el resumen por departamento a Excel | Admin, Viewer |
 | `GET` | `/api/Reports/departments/pdf` | Exporta el resumen por departamento a PDF | Admin, Viewer |
@@ -307,7 +311,6 @@ Pensado para correr como contenedor Docker (`Dockerfile` incluido) en Render, co
 - [ ] Refresh tokens
 - [ ] Pruebas de integración con `WebApplicationFactory`
 - [ ] Caché del dashboard
-- [ ] Restauración de empleados dados de baja
 
 ## Autor
 

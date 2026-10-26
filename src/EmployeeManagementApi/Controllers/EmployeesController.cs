@@ -61,16 +61,21 @@ public class EmployeesController : ControllerBase
         return Ok(updated);
     }
 
-    /// <summary>Da de baja (soft delete) a un empleado.</summary>
-    [HttpDelete("{id:int}")]
+    /// <summary>Da de baja a un empleado (baja lógica) con fecha y motivo.</summary>
+    [HttpPost("{id:int}/terminate")]
     [Authorize(Roles = "Admin")]
-    [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> Delete(int id)
-    {
-        await _service.DeleteAsync(id);
-        return NoContent();
-    }
+    [ProducesResponseType(typeof(EmployeeDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<EmployeeDto>> Terminate(int id, [FromBody] TerminateEmployeeDto dto)
+        => Ok(await _service.TerminateAsync(id, dto));
+
+    /// <summary>Recontrata a un empleado dado de baja (reinicia su fecha de contratación).</summary>
+    [HttpPost("{id:int}/rehire")]
+    [Authorize(Roles = "Admin")]
+    [ProducesResponseType(typeof(EmployeeDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<EmployeeDto>> Rehire(int id, [FromBody] RehireEmployeeDto dto)
+        => Ok(await _service.RehireAsync(id, dto));
 
     /// <summary>Bitácora de cambios del empleado (altas, cambios de departamento, salario, estado).</summary>
     [HttpGet("{id:int}/history")]
