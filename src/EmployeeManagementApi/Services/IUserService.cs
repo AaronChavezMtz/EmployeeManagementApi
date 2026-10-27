@@ -12,4 +12,8 @@ public interface IUserService
 
     // Cambio de contraseña del propio usuario (no aplica a cuentas protegidas).
     Task ChangePasswordAsync(string username, ChangePasswordDto dto);
+
+    // Acceso al portal: usuario Employee vinculado, con contraseña temporal.
+    Task EnsurePortalUsernameAvailableAsync(string employeeEmail);
+    Task<PortalAccessDto> CreatePortalAccessAsync(int employeeId);
 }

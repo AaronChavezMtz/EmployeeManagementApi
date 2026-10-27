@@ -13,10 +13,12 @@ namespace EmployeeManagementApi.Controllers;
 public class EmployeesController : ControllerBase
 {
     private readonly IEmployeeService _service;
+    private readonly IUserService _users;
 
-    public EmployeesController(IEmployeeService service)
+    public EmployeesController(IEmployeeService service, IUserService users)
     {
         _service = service;
+        _users = users;
     }
 
     /// <summary>Obtiene empleados con búsqueda, filtros, orden y paginación.</summary>
@@ -45,9 +47,25 @@ public class EmployeesController : ControllerBase
     [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<EmployeeDto>> Create([FromBody] CreateEmployeeDto dto)
     {
+        // Se valida antes de crear al empleado para no dejarlo dado de alta sin el acceso pedido.
+        if (dto.GrantPortalAccess)
+            await _users.EnsurePortalUsernameAvailableAsync(dto.Email);
+
         var created = await _service.CreateAsync(dto);
+        if (dto.GrantPortalAccess)
+        {
+            created.PortalAccess = await _users.CreatePortalAccessAsync(created.Id);
+            created.PortalUsername = created.PortalAccess.Username;
+        }
         return CreatedAtAction(nameof(GetById), new { id = created.Id }, created);
     }
+
+    /// <summary>Crea el usuario del portal para un empleado activo; devuelve la contraseña temporal una sola vez.</summary>
+    [HttpPost("{id:int}/portal-access")]
+    [ProducesResponseType(typeof(PortalAccessDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<PortalAccessDto>> CreatePortalAccess(int id)
+        => Ok(await _users.CreatePortalAccessAsync(id));
 
     /// <summary>Actualiza un empleado existente.</summary>
     [HttpPut("{id:int}")]

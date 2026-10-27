@@ -12,11 +12,12 @@ namespace EmployeeManagementApi.Tests.Controllers;
 public class EmployeesControllerTests
 {
     private readonly Mock<IEmployeeService> _serviceMock = new();
+    private readonly Mock<IUserService> _usersMock = new();
     private readonly EmployeesController _controller;
 
     public EmployeesControllerTests()
     {
-        _controller = new EmployeesController(_serviceMock.Object);
+        _controller = new EmployeesController(_serviceMock.Object, _usersMock.Object);
     }
 
     [Fact]
@@ -66,5 +67,31 @@ public class EmployeesControllerTests
 
         // El controller no atrapa la excepción: eso lo hace ExceptionMiddleware a nivel de pipeline.
         await act.Should().ThrowAsync<NotFoundException>();
+    }
+
+    [Fact]
+    public async Task Create_ConAccesoAlPortal_ValidaAntesDeCrearYDevuelveCredenciales()
+    {
+        var dto = new CreateEmployeeDto { FirstName = "Eva", LastName = "Díaz", Email = "eva@test.com", DepartmentId = 1, GrantPortalAccess = true };
+        _serviceMock.Setup(s => s.CreateAsync(dto)).ReturnsAsync(new EmployeeDto { Id = 5 });
+        _usersMock.Setup(u => u.CreatePortalAccessAsync(5)).ReturnsAsync(new PortalAccessDto { Username = "eva@test.com", TemporaryPassword = "Temp12345678" });
+
+        var result = await _controller.Create(dto);
+
+        var created = result.Result.Should().BeOfType<CreatedAtActionResult>().Subject;
+        created.Value.As<EmployeeDto>().PortalAccess!.TemporaryPassword.Should().Be("Temp12345678");
+        _usersMock.Verify(u => u.EnsurePortalUsernameAvailableAsync("eva@test.com"), Times.Once);
+    }
+
+    [Fact]
+    public async Task Create_SiElUsuarioYaExiste_NoCreaAlEmpleado()
+    {
+        var dto = new CreateEmployeeDto { Email = "eva@test.com", DepartmentId = 1, GrantPortalAccess = true };
+        _usersMock.Setup(u => u.EnsurePortalUsernameAvailableAsync("eva@test.com")).ThrowsAsync(new BusinessRuleException("Ya existe"));
+
+        var act = async () => await _controller.Create(dto);
+
+        await act.Should().ThrowAsync<BusinessRuleException>();
+        _serviceMock.Verify(s => s.CreateAsync(It.IsAny<CreateEmployeeDto>()), Times.Never);
     }
 }

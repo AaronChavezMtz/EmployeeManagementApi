@@ -21,6 +21,16 @@ public class EmployeeDto
     public string? TerminationReason { get; set; }
     public int DepartmentId { get; set; }
     public string? DepartmentName { get; set; }
+
+    public string? PortalUsername { get; set; }     // solo en el detalle: usuario vinculado, si lo hay
+    public PortalAccessDto? PortalAccess { get; set; } // solo al crear el acceso: credenciales temporales
+}
+
+// Credenciales que se muestran una única vez al admin para que se las entregue al empleado.
+public class PortalAccessDto
+{
+    public string Username { get; set; } = string.Empty;
+    public string TemporaryPassword { get; set; } = string.Empty;
 }
 
 public class CreateEmployeeDto
@@ -59,6 +69,8 @@ public class CreateEmployeeDto
     [Required(ErrorMessage = "El departamento es obligatorio")]
     [Range(1, int.MaxValue, ErrorMessage = "Debe seleccionar un departamento válido")]
     public int DepartmentId { get; set; }
+
+    public bool GrantPortalAccess { get; set; } // crea también su usuario del portal
 }
 
 public class UpdateEmployeeDto
