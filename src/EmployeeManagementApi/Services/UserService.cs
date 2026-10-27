@@ -52,6 +52,26 @@ public class UserService : IUserService
         return UserDto.From(user);
     }
 
+    public async Task ChangePasswordAsync(string username, ChangePasswordDto dto)
+    {
+        // Las públicas de la demo las comparten todos los visitantes; las del dueño se sincronizan
+        // con la configuración al arrancar, así que un cambio aquí se perdería.
+        if (_demo.IsProtected(username))
+            throw new BusinessRuleException("La contraseña de esta cuenta no se puede cambiar desde el sistema");
+
+        var user = await _context.Users.FirstOrDefaultAsync(u => u.Username == username)
+            ?? throw new NotFoundException("No se encontró tu usuario");
+
+        if (!BCrypt.Net.BCrypt.Verify(dto.CurrentPassword, user.PasswordHash))
+            throw new BusinessRuleException("La contraseña actual no es correcta");
+        if (dto.NewPassword == dto.CurrentPassword)
+            throw new BusinessRuleException("La nueva contraseña debe ser distinta de la actual");
+
+        user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.NewPassword, workFactor: 12);
+        user.MustChangePassword = false;
+        await _context.SaveChangesAsync();
+    }
+
     public async Task<int> GetLinkedEmployeeIdAsync(string username)
     {
         var employeeId = await _context.Users

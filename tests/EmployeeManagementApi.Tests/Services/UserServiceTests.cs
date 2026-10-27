@@ -1,3 +1,4 @@
+using EmployeeManagementApi.Data;
 using EmployeeManagementApi.Common;
 using EmployeeManagementApi.DTOs;
 using EmployeeManagementApi.Models;
@@ -122,5 +123,49 @@ public class UserServiceTests
 
         vistaDueno.Should().Equal(new Dictionary<string, bool> { ["admin"] = false, ["adminprueba"] = true, ["visitante"] = true });
         vistaPublica.Should().Equal(new Dictionary<string, bool> { ["admin"] = false, ["adminprueba"] = false, ["visitante"] = true });
+    }
+
+    private static (UserService Service, AppDbContext Context) WithUser(string username, string password, bool mustChange = true)
+    {
+        var context = TestDbContextFactory.Create();
+        context.Users.Add(new User
+        {
+            Username = username, Email = $"{username}@test.com", Role = UserRole.Employee,
+            PasswordHash = BCrypt.Net.BCrypt.HashPassword(password, workFactor: 4), MustChangePassword = mustChange
+        });
+        context.SaveChanges();
+        return (new UserService(context, Options.Create(new DemoSettings { ProtectedUsers = "usuariolector" })), context);
+    }
+
+    [Fact]
+    public async Task ChangePasswordAsync_ConContrasenaActualCorrecta_CambiaYQuitaLaObligacion()
+    {
+        var (service, context) = WithUser("ana", "Temporal123");
+
+        await service.ChangePasswordAsync("ana", new ChangePasswordDto { CurrentPassword = "Temporal123", NewPassword = "MiClaveNueva1" });
+
+        var user = context.Users.Single();
+        BCrypt.Net.BCrypt.Verify("MiClaveNueva1", user.PasswordHash).Should().BeTrue();
+        user.MustChangePassword.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task ChangePasswordAsync_ConContrasenaActualIncorrecta_LanzaBusinessRuleException()
+    {
+        var (service, _) = WithUser("ana", "Temporal123");
+
+        var act = async () => await service.ChangePasswordAsync("ana", new ChangePasswordDto { CurrentPassword = "otra", NewPassword = "MiClaveNueva1" });
+
+        await act.Should().ThrowAsync<BusinessRuleException>();
+    }
+
+    [Fact]
+    public async Task ChangePasswordAsync_EnCuentaProtegida_LanzaBusinessRuleException()
+    {
+        var (service, _) = WithUser("usuariolector", "lector_123", mustChange: false);
+
+        var act = async () => await service.ChangePasswordAsync("usuariolector", new ChangePasswordDto { CurrentPassword = "lector_123", NewPassword = "Secuestrada1" });
+
+        await act.Should().ThrowAsync<BusinessRuleException>();
     }
 }

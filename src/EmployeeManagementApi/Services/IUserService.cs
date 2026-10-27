@@ -9,4 +9,7 @@ public interface IUserService
 
     // Empleado vinculado al usuario (portal del empleado).
     Task<int> GetLinkedEmployeeIdAsync(string username);
+
+    // Cambio de contraseña del propio usuario (no aplica a cuentas protegidas).
+    Task ChangePasswordAsync(string username, ChangePasswordDto dto);
 }

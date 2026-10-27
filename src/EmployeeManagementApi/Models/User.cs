@@ -27,6 +27,9 @@ public class User
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public bool IsActive { get; set; } = true;
 
+    // La contraseña la eligió otra persona (un admin): hay que cambiarla antes de usar el sistema.
+    public bool MustChangePassword { get; set; }
+
     // Ficha de empleado a la que accede este usuario (obligatoria para el rol Employee).
     public int? EmployeeId { get; set; }
     public Employee? Employee { get; set; }

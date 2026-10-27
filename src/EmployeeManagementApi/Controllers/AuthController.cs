@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using EmployeeManagementApi.DTOs;
 using EmployeeManagementApi.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -11,10 +12,12 @@ namespace EmployeeManagementApi.Controllers;
 public class AuthController : ControllerBase
 {
     private readonly IAuthService _authService;
+    private readonly IUserService _userService;
 
-    public AuthController(IAuthService authService)
+    public AuthController(IAuthService authService, IUserService userService)
     {
         _authService = authService;
+        _userService = userService;
     }
 
     /// <summary>Inicia sesión y devuelve un token JWT.</summary>
@@ -34,5 +37,16 @@ public class AuthController : ControllerBase
     {
         var result = await _authService.RegisterAsync(dto);
         return Ok(result);
+    }
+
+    /// <summary>Cambia la contraseña del usuario actual (obligatorio si MustChangePassword).</summary>
+    [HttpPost("change-password")]
+    [Authorize]
+    [EnableRateLimiting("login")] // pide la contraseña actual: mismo límite que el login
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordDto dto)
+    {
+        await _userService.ChangePasswordAsync(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? string.Empty, dto);
+        return NoContent();
     }
 }

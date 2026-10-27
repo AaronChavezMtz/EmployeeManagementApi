@@ -39,4 +39,16 @@ public class AuthResponseDto
     public string Username { get; set; } = string.Empty;
     public string Role { get; set; } = string.Empty;
     public DateTime ExpiresAtUtc { get; set; }
+    public bool MustChangePassword { get; set; }
+}
+
+public class ChangePasswordDto
+{
+    [Required(ErrorMessage = "La contraseña actual es obligatoria")]
+    [StringLength(100)]
+    public string CurrentPassword { get; set; } = string.Empty;
+
+    [Required(ErrorMessage = "La nueva contraseña es obligatoria")]
+    [StringLength(100, MinimumLength = 8, ErrorMessage = "La nueva contraseña debe tener al menos 8 caracteres")]
+    public string NewPassword { get; set; } = string.Empty;
 }

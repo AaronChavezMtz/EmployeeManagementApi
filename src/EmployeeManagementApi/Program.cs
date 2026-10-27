@@ -142,9 +142,15 @@ builder.Services.AddAuthentication(options =>
             }
 
             var db = context.HttpContext.RequestServices.GetRequiredService<AppDbContext>();
-            var stillValid = await db.Users.AnyAsync(u => u.Username == username && u.IsActive && u.Role == role);
-            if (!stillValid)
+            var account = await db.Users
+                .Where(u => u.Username == username && u.IsActive && u.Role == role)
+                .Select(u => new { u.MustChangePassword })
+                .FirstOrDefaultAsync();
+            if (account is null)
                 context.Fail("La cuenta ya no está activa o cambió de rol.");
+            // Con contraseña temporal solo se permite cambiarla.
+            else if (account.MustChangePassword && !context.HttpContext.Request.Path.StartsWithSegments("/api/auth/change-password"))
+                context.Fail("Debes cambiar tu contraseña temporal antes de continuar.");
         }
     };
 });
