@@ -93,7 +93,7 @@ public class DemoService : IDemoService
         {
             EmployeeId = e.Id,
             ChangeType = HistoryChangeType.Created,
-            NewValue = $"{e.FirstName} {e.LastName} contratado como {e.Position}",
+            NewValue = $"Contratado como {e.Position}",
             ChangedBy = "sistema",
             ChangedAtUtc = e.HireDate
         }));

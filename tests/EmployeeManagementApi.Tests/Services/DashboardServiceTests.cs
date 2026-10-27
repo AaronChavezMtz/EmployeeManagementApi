@@ -31,6 +31,7 @@ public class DashboardServiceTests
         // Plantilla al inicio de la ventana = 4, hoy = 3 → promedio 3.5; 1 baja → 28.6 %
         kpis.TerminationsLast12Months.Should().Be(1);
         kpis.TurnoverRatePercent.Should().Be(28.6);
+        kpis.AverageHeadcount.Should().Be(3.5);
         kpis.ActiveHeadcount.Should().Be(3);
         kpis.TerminationsByReason.Should().ContainSingle(r => r.Reason == "Resignation" && r.Count == 1);
         kpis.HiringTrend.Should().HaveCount(12);

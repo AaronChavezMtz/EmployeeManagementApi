@@ -134,7 +134,7 @@ public class EmployeeService : IEmployeeService
         {
             EmployeeId = employee.Id,
             ChangeType = HistoryChangeType.Created,
-            NewValue = $"{employee.FirstName} {employee.LastName} contratado como {employee.Position}",
+            NewValue = $"Contratado como {employee.Position}", // sin nombre: la ficha puede renombrarse
             ChangedBy = CurrentUsername,
             ChangedAtUtc = DateTime.UtcNow
         });

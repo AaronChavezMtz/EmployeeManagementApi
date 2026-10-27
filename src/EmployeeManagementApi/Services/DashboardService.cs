@@ -59,6 +59,7 @@ public class DashboardService : IDashboardService
             ActiveHeadcount = active.Count,
             TurnoverRatePercent = turnoverRate,
             TerminationsLast12Months = terminations.Count,
+            AverageHeadcount = Math.Round(averageHeadcount, 1),
             AverageTenureYears = averageTenure,
             TerminationsByReason = terminations
                 .GroupBy(e => e.TerminationReason?.ToString() ?? "Other")
