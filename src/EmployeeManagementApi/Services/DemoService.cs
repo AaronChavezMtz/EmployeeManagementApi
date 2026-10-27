@@ -95,7 +95,7 @@ public class DemoService : IDemoService
             ChangeType = HistoryChangeType.Created,
             NewValue = $"Contratado como {e.Position}",
             ChangedBy = "sistema",
-            ChangedAtUtc = e.HireDate
+            ChangedAtUtc = DateTime.SpecifyKind(e.HireDate.AddHours(15), DateTimeKind.Utc) // 9:00 en México
         }));
         // Algunas solicitudes para que la bandeja de RH y el portal no estén vacíos.
         DateTime NextMonday(int weeksAhead) => today.AddDays(((int)DayOfWeek.Monday - (int)today.DayOfWeek + 7) % 7 + 7 * weeksAhead);
@@ -118,7 +118,7 @@ public class DemoService : IDemoService
             ChangeType = HistoryChangeType.Deactivated,
             NewValue = $"Baja el {e.TerminationDate:yyyy-MM-dd}",
             ChangedBy = "sistema",
-            ChangedAtUtc = e.TerminationDate!.Value
+            ChangedAtUtc = DateTime.SpecifyKind(e.TerminationDate!.Value.AddHours(15), DateTimeKind.Utc)
         }));
         await _context.SaveChangesAsync();
 

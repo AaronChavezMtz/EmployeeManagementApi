@@ -1,5 +1,6 @@
 using EmployeeManagementApi.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 namespace EmployeeManagementApi.Data;
 
@@ -116,5 +117,26 @@ public class AppDbContext : DbContext
             new Department { Id = 3, Name = "Ventas", Description = "Comercialización y atención a clientes", CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc) },
             new Department { Id = 4, Name = "Finanzas", Description = "Contabilidad y control financiero", CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc) }
         );
+
+        MarkTimestampsAsUtc(modelBuilder);
+    }
+
+    // SQL Server no guarda la zona: al leer, un DateTime llega como "Unspecified" y se serializa sin "Z",
+    // así que el navegador lo interpreta como hora local (las 21:07 de México se veían como 03:07).
+    // Los instantes (CreatedAt, UpdatedAt, *Utc) se marcan como UTC al leerlos. Las fechas de calendario
+    // (HireDate, BirthDate, StartDate...) no: son días, no momentos, y convertirlas las movería al día anterior.
+    private static void MarkTimestampsAsUtc(ModelBuilder modelBuilder)
+    {
+        var utc = new ValueConverter<DateTime, DateTime>(v => v, v => DateTime.SpecifyKind(v, DateTimeKind.Utc));
+        var nullableUtc = new ValueConverter<DateTime?, DateTime?>(v => v, v => v.HasValue ? DateTime.SpecifyKind(v.Value, DateTimeKind.Utc) : v);
+
+        foreach (var property in modelBuilder.Model.GetEntityTypes().SelectMany(t => t.GetProperties()))
+        {
+            var isTimestamp = property.Name is "CreatedAt" or "UpdatedAt" || property.Name.EndsWith("Utc");
+            if (!isTimestamp) continue;
+
+            if (property.ClrType == typeof(DateTime)) property.SetValueConverter(utc);
+            else if (property.ClrType == typeof(DateTime?)) property.SetValueConverter(nullableUtc);
+        }
     }
 }
