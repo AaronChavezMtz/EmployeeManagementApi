@@ -208,7 +208,8 @@ public class EmployeeServiceTests
 
         var history = await service.GetHistoryAsync(created.Id);
 
-        history.Should().ContainSingle(h => h.ChangeType == EmployeeManagementApi.Models.HistoryChangeType.Created);
+        var hire = history.Should().ContainSingle(h => h.ChangeType == EmployeeManagementApi.Models.HistoryChangeType.Created).Subject;
+        hire.NewValue.Should().Be("Contratado como Desarrollador"); // sin el nombre: la ficha puede renombrarse
     }
 
     [Fact]

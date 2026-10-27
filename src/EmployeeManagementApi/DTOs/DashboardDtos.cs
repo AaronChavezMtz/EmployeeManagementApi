@@ -22,6 +22,7 @@ public class DashboardKpisDto
     // Rotación de los últimos 12 meses: bajas del periodo / plantilla promedio del periodo.
     public double TurnoverRatePercent { get; set; }
     public int TerminationsLast12Months { get; set; }
+    public double AverageHeadcount { get; set; }   // base del cálculo de rotación
     public double AverageTenureYears { get; set; } // antigüedad promedio de los activos
     public List<TerminationsByReasonDto> TerminationsByReason { get; set; } = new();
     public List<MonthlyHiresDto> HiringTrend { get; set; } = new();
