@@ -18,10 +18,13 @@ public class UserService : IUserService
         _demo = demoOptions.Value;
     }
 
-    public async Task<IEnumerable<UserDto>> GetAllAsync()
+    public async Task<IEnumerable<UserDto>> GetAllAsync(string currentUsername)
     {
         var users = await _context.Users.Include(u => u.Employee).OrderBy(u => u.Username).ToListAsync();
-        return users.Select(u => UserDto.From(u, _demo.IsProtected(u.Username)));
+        return users.Select(u => UserDto.From(u,
+            isProtected: _demo.IsProtected(u.Username),
+            // La propia cuenta tampoco se edita desde la tabla (no quitarse el rol por accidente).
+            canEdit: u.Username != currentUsername && _demo.CanEdit(currentUsername, u.Username)));
     }
 
     public async Task<UserDto> UpdateAsync(int id, UpdateUserDto dto, string currentUsername)
@@ -30,7 +33,7 @@ public class UserService : IUserService
         if (user is null)
             throw new NotFoundException($"No se encontró el usuario con id {id}");
 
-        if (_demo.IsProtected(user.Username))
+        if (!_demo.CanEdit(currentUsername, user.Username))
             throw new BusinessRuleException("Esta cuenta está protegida y no se puede modificar");
 
         var role = UserRoles.Parse(dto.Role);
