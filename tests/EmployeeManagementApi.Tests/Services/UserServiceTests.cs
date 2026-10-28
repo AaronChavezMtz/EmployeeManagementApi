@@ -166,7 +166,22 @@ public class UserServiceTests
 
         var act = async () => await service.ChangePasswordAsync("usuariolector", new ChangePasswordDto { CurrentPassword = "lector_123", NewPassword = "Secuestrada1" });
 
-        await act.Should().ThrowAsync<BusinessRuleException>();
+        await act.Should().ThrowAsync<BusinessRuleException>()
+            .WithMessage("Las cuentas de demostración no tienen permitido cambiar la contraseña");
+    }
+
+    [Fact]
+    public async Task ChangePasswordAsync_EnCuentaDelDueno_ExplicaQueSeGestionaEnLaConfiguracion()
+    {
+        var context = TestDbContextFactory.Create();
+        context.Users.Add(new User { Username = "admin", Email = "a@test.com", Role = UserRole.Admin, PasswordHash = BCrypt.Net.BCrypt.HashPassword("Clave1234", workFactor: 4) });
+        context.SaveChanges();
+        var service = new UserService(context, Options.Create(new DemoSettings { ProtectedUsers = "admin", OwnerUsers = "admin" }));
+
+        var act = async () => await service.ChangePasswordAsync("admin", new ChangePasswordDto { CurrentPassword = "Clave1234", NewPassword = "OtraClave99" });
+
+        await act.Should().ThrowAsync<BusinessRuleException>()
+            .WithMessage("La contraseña de esta cuenta se gestiona desde la configuración del servidor");
     }
 
     [Fact]

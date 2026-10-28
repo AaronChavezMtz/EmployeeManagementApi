@@ -57,8 +57,10 @@ public class UserService : IUserService
     {
         // Las públicas de la demo las comparten todos los visitantes; las del dueño se sincronizan
         // con la configuración al arrancar, así que un cambio aquí se perdería.
+        if (_demo.IsOwner(username))
+            throw new BusinessRuleException("La contraseña de esta cuenta se gestiona desde la configuración del servidor");
         if (_demo.IsProtected(username))
-            throw new BusinessRuleException("La contraseña de esta cuenta no se puede cambiar desde el sistema");
+            throw new BusinessRuleException("Las cuentas de demostración no tienen permitido cambiar la contraseña");
 
         var user = await _context.Users.FirstOrDefaultAsync(u => u.Username == username)
             ?? throw new NotFoundException("No se encontró tu usuario");
